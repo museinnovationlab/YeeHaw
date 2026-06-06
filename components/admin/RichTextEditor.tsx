@@ -5,7 +5,21 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
-import { useCallback } from "react";
+import Image from "@tiptap/extension-image";
+import { useCallback, useRef, useState } from "react";
+
+/** Upload a file to the admin image endpoint, return its URL. */
+async function uploadFile(file: File): Promise<string> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch("/api/upload", { method: "POST", body });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j.error ?? "upload failed");
+  }
+  const { url } = await res.json();
+  return url as string;
+}
 
 function Btn({
   onClick,
@@ -37,6 +51,35 @@ function Btn({
 }
 
 function Toolbar({ editor }: { editor: Editor }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const onPickFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = ""; // allow re-picking the same file
+      if (!file) return;
+      setUploading(true);
+      try {
+        const url = await uploadFile(file);
+        editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+      } catch (err) {
+        window.alert(
+          "Image upload failed: " +
+            (err instanceof Error ? err.message : "unknown error")
+        );
+      } finally {
+        setUploading(false);
+      }
+    },
+    [editor]
+  );
+
+  const addImageByUrl = useCallback(() => {
+    const url = window.prompt("Image URL");
+    if (url) editor.chain().focus().setImage({ src: url }).run();
+  }, [editor]);
+
   const setLink = useCallback(() => {
     const prev = editor.getAttributes("link").href as string | undefined;
     const url = window.prompt("Link URL", prev ?? "https://");
@@ -100,6 +143,19 @@ function Toolbar({ editor }: { editor: Editor }) {
       <Btn title="Link" onClick={setLink} active={editor.isActive("link")}>
         🔗
       </Btn>
+      <Btn title="Upload image" onClick={() => fileRef.current?.click()} disabled={uploading}>
+        {uploading ? "…" : "🖼"}
+      </Btn>
+      <Btn title="Image by URL" onClick={addImageByUrl}>
+        🌐
+      </Btn>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={onPickFile}
+      />
       <span className="mx-1 h-6 w-px bg-ink/20" />
       <Btn title="Undo" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
         ↶
@@ -125,6 +181,7 @@ export default function RichTextEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [2, 3] } }),
       Underline,
+      Image.configure({ inline: false, allowBase64: false }),
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder }),
     ],

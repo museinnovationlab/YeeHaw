@@ -28,6 +28,7 @@ export interface PostInput {
   bodyHtml?: string;
   bodyMarkdown?: string;
   stamp?: string;
+  featuredImageUrl?: string;
   seoTitle?: string;
   seoDescription?: string;
   emailSubject?: string;
@@ -66,6 +67,7 @@ export async function savePost(input: PostInput): Promise<{ id: string; slug: st
     bodyHtml: input.bodyHtml ?? "",
     bodyMarkdown: input.bodyMarkdown ?? "",
     stamp: input.stamp ?? "",
+    featuredImageUrl: input.featuredImageUrl ?? "",
     seoTitle: input.seoTitle ?? "",
     seoDescription: input.seoDescription ?? "",
     emailSubject: input.emailSubject ?? "",

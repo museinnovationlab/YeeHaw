@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import RichTextEditor from "./RichTextEditor";
 import { savePostAction } from "@/app/admin/(dash)/posts/actions";
@@ -46,6 +46,9 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [postType, setPostType] = useState<PostType>(post?.postType ?? "roundup");
   const [dek, setDek] = useState(post?.dek ?? "");
   const [stamp, setStamp] = useState(post?.stamp ?? "weirdFind");
+  const [featuredImageUrl, setFeaturedImageUrl] = useState(post?.featuredImageUrl ?? "");
+  const [uploadingFeatured, setUploadingFeatured] = useState(false);
+  const featuredRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<PostStatus>(post?.status ?? "draft");
   const [bodyHtml, setBodyHtml] = useState(post?.bodyHtml ?? "");
   const [publishDate, setPublishDate] = useState(
@@ -55,6 +58,25 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [seoDescription, setSeoDescription] = useState(post?.seoDescription ?? "");
   const [emailSubject, setEmailSubject] = useState(post?.emailSubject ?? "");
   const [emailPreviewText, setEmailPreviewText] = useState(post?.emailPreviewText ?? "");
+
+  async function onPickFeatured(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingFeatured(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body });
+      if (!res.ok) throw new Error("upload failed");
+      const { url } = await res.json();
+      setFeaturedImageUrl(url);
+    } catch {
+      setError("Featured image upload failed");
+    } finally {
+      setUploadingFeatured(false);
+    }
+  }
 
   function save(nextStatus?: PostStatus) {
     setError(null);
@@ -70,6 +92,7 @@ export default function PostEditor({ post }: { post: Post | null }) {
           stamp,
           status: effectiveStatus,
           bodyHtml,
+          featuredImageUrl,
           publishedAt: publishDate ? new Date(publishDate).toISOString() : undefined,
           seoTitle,
           seoDescription,
@@ -180,6 +203,44 @@ export default function PostEditor({ post }: { post: Post | null }) {
             ))}
           </select>
         )}
+        <div>
+          <span className="font-mono text-xs uppercase tracking-wide text-ink/60">
+            Featured image
+          </span>
+          {featuredImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={featuredImageUrl}
+              alt=""
+              className="mt-1 aspect-video w-full rounded-lg border-2 border-ink object-cover"
+            />
+          ) : (
+            <div className="mt-1 flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-ink/30 text-xs text-ink/40">
+              none
+            </div>
+          )}
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => featuredRef.current?.click()}
+              disabled={uploadingFeatured}
+              className="font-mono flex-1 rounded-full border-2 border-ink bg-cream px-3 py-1.5 text-xs uppercase hover:bg-yellow disabled:opacity-50"
+            >
+              {uploadingFeatured ? "…" : featuredImageUrl ? "Replace" : "Upload"}
+            </button>
+            {featuredImageUrl && (
+              <button
+                type="button"
+                onClick={() => setFeaturedImageUrl("")}
+                className="font-mono rounded-full border-2 border-ink bg-cream px-3 py-1.5 text-xs uppercase hover:bg-pink hover:text-cream"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <input ref={featuredRef} type="file" accept="image/*" hidden onChange={onPickFeatured} />
+        </div>
+
         {field(
           "Publish date",
           <input type="date" value={publishDate} onChange={(e) => setPublishDate(e.target.value)} className={inputClass} />,

@@ -24,6 +24,9 @@ export async function generateMetadata({
   return {
     title: `${post.seoTitle ?? post.title} · YeeHaw`,
     description: post.seoDescription ?? post.dek,
+    openGraph: post.featuredImageUrl
+      ? { images: [{ url: post.featuredImageUrl }] }
+      : undefined,
   };
 }
 
@@ -55,6 +58,15 @@ export default async function PostPage({
         </h1>
         {post.subtitle && (
           <p className="mt-3 text-xl text-ink/70">{post.subtitle}</p>
+        )}
+
+        {post.featuredImageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={post.featuredImageUrl}
+            alt=""
+            className="yh-shadow-sm mt-8 w-full rounded-2xl border-2 border-ink object-cover"
+          />
         )}
 
         <div className="yh-prose mt-8 text-lg leading-relaxed text-ink/90">
