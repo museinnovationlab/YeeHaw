@@ -9,6 +9,7 @@ import Sticker from "@/components/Sticker";
 import { stamps, type StampKey } from "@/lib/brand";
 import { formatDateLong } from "@/lib/format";
 import { getPostBySlug, getPublishedPosts } from "@/lib/repo/posts";
+import { cleanHtml } from "@/lib/sanitize";
 
 export const revalidate = 300;
 
@@ -57,9 +58,13 @@ export default async function PostPage({
         )}
 
         <div className="yh-prose mt-8 text-lg leading-relaxed text-ink/90">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {post.bodyMarkdown}
-          </ReactMarkdown>
+          {post.bodyHtml ? (
+            <div dangerouslySetInnerHTML={{ __html: cleanHtml(post.bodyHtml) }} />
+          ) : (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {post.bodyMarkdown}
+            </ReactMarkdown>
+          )}
         </div>
 
         {post.hasAffiliateLinks && <AffiliateDisclosure />}

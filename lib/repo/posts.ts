@@ -1,9 +1,99 @@
 import "server-only";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, isFirebaseAdminConfigured } from "@/lib/firebase/admin";
-import type { Post } from "@/lib/types";
+import type { Post, PostStatus, PostType } from "@/lib/types";
 import { samplePosts } from "@/lib/posts";
 
 const COLLECTION = "posts";
+
+export function slugify(s: string): string {
+  return (
+    s
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "post"
+  );
+}
+
+export interface PostInput {
+  id?: string;
+  title: string;
+  slug?: string;
+  subtitle?: string;
+  dek?: string;
+  postType: PostType;
+  status: PostStatus;
+  bodyHtml?: string;
+  bodyMarkdown?: string;
+  stamp?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  emailSubject?: string;
+  emailPreviewText?: string;
+  tags?: string[];
+  categories?: string[];
+  /** ISO date — set for archive imports / manual date overrides */
+  publishedAt?: string;
+  importedFromArchive?: boolean;
+  hasAffiliateLinks?: boolean;
+}
+
+/** Fetch any post by id (any status) for editing. */
+export async function getPostById(id: string): Promise<Post | null> {
+  if (!isFirebaseAdminConfigured) {
+    return samplePosts.find((p) => p.id === id) ?? null;
+  }
+  const doc = await adminDb().collection(COLLECTION).doc(id).get();
+  if (!doc.exists) return null;
+  return toPost(doc.id, doc.data() as Record<string, unknown>);
+}
+
+/** Create or update a post. Returns the document id. */
+export async function savePost(input: PostInput): Promise<{ id: string; slug: string }> {
+  const db = adminDb();
+  const now = FieldValue.serverTimestamp();
+  const slug = (input.slug?.trim() || slugify(input.title || "untitled")).toLowerCase();
+
+  const data: Record<string, unknown> = {
+    title: input.title ?? "",
+    slug,
+    subtitle: input.subtitle ?? "",
+    dek: input.dek ?? "",
+    postType: input.postType ?? "roundup",
+    status: input.status ?? "draft",
+    bodyHtml: input.bodyHtml ?? "",
+    bodyMarkdown: input.bodyMarkdown ?? "",
+    stamp: input.stamp ?? "",
+    seoTitle: input.seoTitle ?? "",
+    seoDescription: input.seoDescription ?? "",
+    emailSubject: input.emailSubject ?? "",
+    emailPreviewText: input.emailPreviewText ?? "",
+    tags: input.tags ?? [],
+    categories: input.categories ?? [],
+    importedFromArchive: input.importedFromArchive ?? false,
+    hasAffiliateLinks: input.hasAffiliateLinks ?? false,
+    updatedAt: now,
+  };
+  if (input.publishedAt) data.publishedAt = new Date(input.publishedAt);
+
+  if (input.id) {
+    const ref = db.collection(COLLECTION).doc(input.id);
+    // On first publish (no explicit date), stamp publishedAt = now.
+    if (input.status === "published" && !input.publishedAt) {
+      const existing = await ref.get();
+      if (!existing.data()?.publishedAt) data.publishedAt = now;
+    }
+    await ref.set(data, { merge: true });
+    return { id: input.id, slug };
+  }
+
+  data.createdAt = now;
+  if (input.status === "published" && !data.publishedAt) data.publishedAt = now;
+  const ref = await db.collection(COLLECTION).add(data);
+  return { id: ref.id, slug };
+}
 
 // Convert a Firestore doc (with Timestamp fields) into a plain, serializable Post.
 function toPost(id: string, data: Record<string, unknown>): Post {

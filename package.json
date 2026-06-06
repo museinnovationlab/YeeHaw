@@ -12,20 +12,30 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@tiptap/extension-link": "^3.26.0",
+    "@tiptap/extension-placeholder": "^3.26.0",
+    "@tiptap/pm": "^3.26.0",
+    "@tiptap/react": "^3.26.0",
+    "@tiptap/starter-kit": "^3.26.0",
     "firebase": "^12.14.0",
     "firebase-admin": "^13.10.0",
+    "marked": "^18.0.5",
     "next": "^15.5.19",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "server-only": "^0.0.1"
+    "sanitize-html": "^2.17.4",
+    "server-only": "^0.0.1",
+    "turndown": "^7.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.0",
     "@types/node": "22.10.7",
     "@types/react": "19.0.7",
     "@types/react-dom": "19.0.3",
+    "@types/sanitize-html": "^2.16.1",
+    "@types/turndown": "^5.0.6",
     "tailwindcss": "^4.3.0",
     "typescript": "5.7.3"
   }
