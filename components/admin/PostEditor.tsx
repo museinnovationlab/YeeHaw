@@ -110,7 +110,14 @@ export default function PostEditor({ post }: { post: Post | null }) {
             className={inputClass}
           />
         )}
-        {field("Body", <div className="mt-1"><RichTextEditor value={bodyHtml} onChange={setBodyHtml} /></div>)}
+        {/* NOTE: the editor must NOT be wrapped in a <label> — label clicks get
+            redirected to the first toolbar button. Use a plain div. */}
+        <div>
+          <span className="font-mono text-xs uppercase tracking-wide text-ink/60">Body</span>
+          <div className="mt-1">
+            <RichTextEditor value={bodyHtml} onChange={setBodyHtml} />
+          </div>
+        </div>
 
         <details className="rounded-xl border-2 border-ink/20 bg-cream/60 p-4">
           <summary className="font-mono cursor-pointer text-xs uppercase tracking-wide text-ink/60">

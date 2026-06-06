@@ -4,6 +4,7 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import Underline from "@tiptap/extension-underline";
 import { useCallback } from "react";
 
 function Btn({
@@ -55,10 +56,16 @@ function Toolbar({ editor }: { editor: Editor }) {
       <Btn title="Italic" onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")}>
         <span className="italic">I</span>
       </Btn>
+      <Btn title="Underline" onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")}>
+        <span className="underline">U</span>
+      </Btn>
       <Btn title="Strikethrough" onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")}>
         <span className="line-through">S</span>
       </Btn>
       <span className="mx-1 h-6 w-px bg-ink/20" />
+      <Btn title="Normal text" onClick={() => editor.chain().focus().setParagraph().run()} active={editor.isActive("paragraph")}>
+        ¶
+      </Btn>
       <Btn title="Heading 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })}>
         H2
       </Btn>
@@ -117,6 +124,7 @@ export default function RichTextEditor({
     immediatelyRender: false, // avoid SSR hydration mismatch
     extensions: [
       StarterKit.configure({ heading: { levels: [2, 3] } }),
+      Underline,
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder }),
     ],

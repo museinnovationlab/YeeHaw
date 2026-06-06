@@ -108,11 +108,31 @@ body {
 .yh-prose ul {
   list-style: disc;
 }
+.yh-prose ul ul {
+  list-style: circle;
+}
+.yh-prose ul ul ul {
+  list-style: square;
+}
 .yh-prose ol {
   list-style: decimal;
 }
+.yh-prose ol ol {
+  list-style: lower-alpha;
+}
+.yh-prose ol ol ol {
+  list-style: lower-roman;
+}
+.yh-prose li > ul,
+.yh-prose li > ol {
+  margin-top: 0.4em;
+  margin-bottom: 0.2em;
+}
 .yh-prose li + li {
   margin-top: 0.4em;
+}
+.yh-prose u {
+  text-decoration: underline;
 }
 .yh-prose blockquote {
   border-left: 4px solid var(--color-purple);

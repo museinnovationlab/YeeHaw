@@ -5,7 +5,7 @@ import sanitizeHtml from "sanitize-html";
 // the trusted admin, but we clean anyway as defense-in-depth.
 export function cleanHtml(dirty: string): string {
   return sanitizeHtml(dirty, {
-    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "h2", "h3"]),
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "h2", "h3", "u", "s"]),
     allowedAttributes: {
       ...sanitizeHtml.defaults.allowedAttributes,
       a: ["href", "name", "target", "rel"],
