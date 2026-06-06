@@ -1,0 +1,15 @@
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Official Next.js runtime for Netlify (SSR, image optimization, functions).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Long-cache the immutable brand stickers.
+[[headers]]
+  for = "/brand/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

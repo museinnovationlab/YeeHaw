@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+/* ---- YeeHaw brand tokens (from the brand system) ----------------------- */
+@theme {
+  --color-cream: #fff3d6; /* rec room cream — backgrounds */
+  --color-ink: #17141f; /* arcade black — text */
+  --color-pink: #ff4fa3; /* hot cassette pink — highlights (display only) */
+  --color-cyan: #20c7e8; /* electric cyan — links */
+  --color-yellow: #ffd23f; /* power-up yellow — emphasis (display only) */
+  --color-purple: #7b4dff; /* vhs purple — headers */
+  --color-mint: #5ef288; /* mint console green */
+  --color-orange: #ff7a1a; /* joystick orange */
+
+  --font-display: var(--font-bungee-shade), system-ui, sans-serif;
+  --font-heading: var(--font-bungee), system-ui, sans-serif;
+  --font-body: var(--font-atkinson), system-ui, sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, monospace;
+}
+
+/* ---- base ------------------------------------------------------------- */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  /* subtle dotted "rec room" texture behind everything */
+  background-image: radial-gradient(rgba(23, 20, 31, 0.05) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+}
+
+/* keep the loud display colors for headings/accents; body text stays ink */
+.font-display {
+  font-family: var(--font-display);
+}
+.font-heading {
+  font-family: var(--font-heading);
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* ---- gentle motion (decorative only), respecting reduced-motion ------- */
+@keyframes yh-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--yh-rot, 0deg));
+  }
+  50% {
+    transform: translateY(-8px) rotate(var(--yh-rot, 0deg));
+  }
+}
+
+.yh-bob {
+  animation: yh-bob 4s ease-in-out infinite;
+}
+.yh-bob-slow {
+  animation: yh-bob 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yh-bob,
+  .yh-bob-slow {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* chunky sticker drop shadow used on framed elements */
+.yh-shadow {
+  box-shadow: 6px 6px 0 0 var(--color-ink);
+}
+.yh-shadow-sm {
+  box-shadow: 4px 4px 0 0 var(--color-ink);
+}
+
+/* ---- minimal prose styling for rendered post markdown ----------------- */
+.yh-prose > * + * {
+  margin-top: 1.25em;
+}
+.yh-prose h2 {
+  font-family: var(--font-heading);
+  font-size: 1.6rem;
+  line-height: 1.2;
+  margin-top: 1.6em;
+}
+.yh-prose h3 {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  margin-top: 1.4em;
+}
+.yh-prose a {
+  color: #128da6; /* darkened cyan for AA contrast on cream */
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.yh-prose a:hover {
+  color: var(--color-pink);
+}
+.yh-prose ul,
+.yh-prose ol {
+  padding-left: 1.4em;
+}
+.yh-prose ul {
+  list-style: disc;
+}
+.yh-prose ol {
+  list-style: decimal;
+}
+.yh-prose li + li {
+  margin-top: 0.4em;
+}
+.yh-prose blockquote {
+  border-left: 4px solid var(--color-purple);
+  padding-left: 1em;
+  font-style: italic;
+  color: rgba(23, 20, 31, 0.75);
+}
+.yh-prose code {
+  font-family: var(--font-mono);
+  background: rgba(123, 77, 255, 0.12);
+  padding: 0.1em 0.35em;
+  border-radius: 0.3em;
+  font-size: 0.9em;
+}
+.yh-prose img {
+  border-radius: 0.75rem;
+  border: 2px solid var(--color-ink);
+}
