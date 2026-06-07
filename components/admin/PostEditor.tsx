@@ -212,7 +212,7 @@ export default function PostEditor({ post }: { post: Post | null }) {
             <img
               src={featuredImageUrl}
               alt=""
-              className="mt-1 aspect-video w-full rounded-lg border-2 border-ink object-cover"
+              className="mt-1 max-h-56 w-full rounded-lg border-2 border-ink bg-ink/5 object-contain"
             />
           ) : (
             <div className="mt-1 flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-ink/30 text-xs text-ink/40">
