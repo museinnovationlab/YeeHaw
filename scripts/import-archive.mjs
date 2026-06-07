@@ -35,8 +35,25 @@ function slugify(s) {
   );
 }
 
+// Promote Squarespace "title" styling into real headings before sanitizing
+// (sanitize strips the classes that carried the styling).
+function promoteHeadings(html) {
+  // image-block titles ("image-title") -> H3 (per-item recommendation titles)
+  html = html.replace(
+    /<div[^>]*class="image-title[^"]*"[^>]*>\s*<p[^>]*>([\s\S]*?)<\/p>\s*<\/div>/g,
+    (_m, inner) => `<h3>${inner.trim()}</h3>`
+  );
+  // standalone [BRACKETED] section markers -> H2 (strip the brackets)
+  html = html.replace(
+    /<p[^>]*>\s*\[\s*([^\]<]+?)\s*\]\s*<\/p>/g,
+    (_m, inner) => `<h2>${inner.trim()}</h2>`
+  );
+  return html;
+}
+
 // Clean Squarespace body HTML down to semantic tags.
 function cleanBody(html) {
+  html = promoteHeadings(html);
   const clean = sanitizeHtml(html, {
     allowedTags: ["p", "h2", "h3", "ul", "ol", "li", "a", "img", "strong", "em", "b", "i", "blockquote", "hr", "br", "figure", "figcaption"],
     allowedAttributes: { a: ["href"], img: ["src", "alt"] },

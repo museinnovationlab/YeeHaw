@@ -148,6 +148,26 @@ body {
   font-size: 0.9em;
 }
 .yh-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25em auto; /* center images that are narrower than the column */
   border-radius: 0.75rem;
   border: 2px solid var(--color-ink);
+}
+.yh-prose figure {
+  margin: 1.5em 0;
+  text-align: center;
+}
+.yh-prose figcaption {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: rgba(23, 20, 31, 0.55);
+  margin-top: 0.5em;
+}
+/* divider lines: give them room so nothing butts up against them */
+.yh-prose hr {
+  border: none;
+  border-top: 3px solid rgba(23, 20, 31, 0.2);
+  margin: 2.75em auto;
 }
