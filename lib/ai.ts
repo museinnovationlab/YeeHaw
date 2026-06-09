@@ -1,6 +1,46 @@
 import "server-only";
 import { unfurl, extractUrls, type LinkMeta } from "./unfurl";
 import { uploadFromUrl } from "./cloudinary";
+import { getPublishedPosts } from "./repo/posts";
+
+/** Pull a couple of real paragraphs from the user's own archived posts so the AI
+ *  matches their actual voice (the strongest anti-"AI tell" signal). */
+async function voiceSamples(): Promise<string> {
+  try {
+    const posts = (await getPublishedPosts()).filter((p) => p.importedFromArchive && p.bodyHtml);
+    if (!posts.length) return "";
+    const pick = posts.sort(() => Math.random() - 0.5).slice(0, 2);
+    const paras: string[] = [];
+    for (const p of pick) {
+      for (const m of (p.bodyHtml || "").matchAll(/<p>([\s\S]*?)<\/p>/g)) {
+        const t = m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+        if (t.length > 70 && t.length < 500) paras.push(t);
+      }
+    }
+    return paras.slice(0, 3).join("\n\n").slice(0, 1600);
+  } catch {
+    return "";
+  }
+}
+
+/** Deterministic safety net: strip the punctuation/filler tells the model leaks
+ *  through despite the prompt. Only runs on AI-generated drafts. */
+export function deAiify(s: string): string {
+  if (!s) return s;
+  let out = s
+    .replace(/\s*[—–]\s*/g, ", ") // em/en dash -> comma
+    .replace(/\bit'?s worth noting that\b/gi, "")
+    .replace(/\bneedless to say,?\s*/gi, "")
+    .replace(/\bwithout further ado,?\s*/gi, "");
+  // tidy artifacts from the replacements
+  out = out
+    .replace(/,\s*,/g, ",")
+    .replace(/\s+,/g, ",")
+    .replace(/,\s*([.!?])/g, "$1")
+    .replace(/\(\s*,\s*/g, "(")
+    .replace(/  +/g, " ");
+  return out;
+}
 
 const KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = "claude-sonnet-4-6";
@@ -17,6 +57,13 @@ Hard rules:
 - Turn the items into a skimmable post: a short warm intro paragraph, then each recommendation as its own block: an <h3> title (hyperlink the title to the item's URL with <a href="URL">) followed by a short paragraph (1-3 sentences). Group related items under an <h2> section header when it helps.
 - IMAGES: For each item that has an image placeholder token in the LINK DATA (e.g. {{IMAGE_1}}), place that exact token on its own line right after that item's title/paragraph where the image should appear. Do NOT write <img> tags yourself and do NOT alter the token — just drop the token in. Only use a token if the item actually has one.
 - Keep it tight and fun.
+
+Avoid the obvious AI-writing tells:
+- NEVER use em-dashes (—) or en-dashes (–). Use commas, periods, or parentheses instead.
+- Do not use these words/phrases: delve, tapestry, boasts, leverage, robust, realm, testament, pivotal, vibrant, seamless, treasure trove, game-changer, elevate, foster, "it's worth noting", "in today's fast-paced world", "when it comes to", "look no further", "needless to say", "dive in", "buckle up", "let's get into it", "that's a wrap", "without further ado".
+- Avoid the "not just X, but Y" construction and avoid neat rule-of-three lists.
+- Vary your sentence length. Don't end with a tidy summarizing conclusion. A little uneven and human is good.
+- Go easy on emoji.
 
 Output format: return ONLY valid JSON (no markdown fences, no commentary) shaped exactly like:
 {"title": "a short catchy post title", "dek": "a one-sentence summary for the card", "seoTitle": "an SEO title ~55 chars", "seoDescription": "a meta description ~150 chars", "emailSubject": "a catchy email subject line, <60 chars", "emailPreviewText": "a one-line inbox preview teaser", "bodyHtml": "the post body as clean semantic HTML possibly containing {{IMAGE_n}} tokens"}
@@ -99,10 +146,13 @@ export async function generateDraft(input: {
 }): Promise<DraftResult> {
   if (!isAiConfigured) throw new Error("AI is not configured (ANTHROPIC_API_KEY missing).");
 
-  const links = await enrichLinks(input.notes);
+  const [links, samples] = await Promise.all([enrichLinks(input.notes), voiceSamples()]);
   const append = input.mode === "append";
 
   const userMsg = [
+    samples
+      ? `VOICE SAMPLES — this is how I actually write. Match this tone, rhythm, and word choice (do NOT reuse the content, just the voice):\n${samples}\n`
+      : "",
     append
       ? "APPEND MODE: generate ONLY the new item block(s) below to append to my existing post (no intro/sign-off). Return empty strings for title/dek/seo/email."
       : input.theme
@@ -158,6 +208,13 @@ export async function generateDraft(input: {
   } catch {
     result = { title: "", dek: "", seoTitle: "", seoDescription: "", emailSubject: "", emailPreviewText: "", bodyHtml: text };
   }
-  result.bodyHtml = substituteImages(result.bodyHtml, links);
+  // de-AI-ify the prose, then place images
+  result.title = deAiify(result.title);
+  result.dek = deAiify(result.dek);
+  result.seoTitle = deAiify(result.seoTitle);
+  result.seoDescription = deAiify(result.seoDescription);
+  result.emailSubject = deAiify(result.emailSubject);
+  result.emailPreviewText = deAiify(result.emailPreviewText);
+  result.bodyHtml = substituteImages(deAiify(result.bodyHtml), links);
   return result;
 }
