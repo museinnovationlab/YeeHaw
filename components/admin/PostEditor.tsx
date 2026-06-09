@@ -4,7 +4,11 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import RichTextEditor from "./RichTextEditor";
 import { savePostAction } from "@/app/admin/(dash)/posts/actions";
-import type { Post, PostStatus, PostType } from "@/lib/types";
+import {
+  getUnusedStashAction,
+  markStashUsedAction,
+} from "@/app/admin/(dash)/stash/actions";
+import type { Post, PostStatus, PostType, StashItem } from "@/lib/types";
 
 const STAMPS = [
   "weirdFind",
@@ -66,6 +70,46 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiMode, setAiMode] = useState<"replace" | "append">("replace");
   const [editorKey, setEditorKey] = useState(0); // bump to reload editor content
+
+  // stash picker
+  const [stashItems, setStashItems] = useState<StashItem[]>([]);
+  const [showStash, setShowStash] = useState(false);
+  const [stashSel, setStashSel] = useState<Set<string>>(new Set());
+  const [stashLoading, setStashLoading] = useState(false);
+
+  async function openStash() {
+    setShowStash(true);
+    setStashLoading(true);
+    try {
+      setStashItems(await getUnusedStashAction());
+    } catch {
+      setStashItems([]);
+    } finally {
+      setStashLoading(false);
+    }
+  }
+  function toggleStashSel(id: string) {
+    setStashSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  async function importStash() {
+    const ids = [...stashSel];
+    if (!ids.length) return;
+    const text = stashItems.filter((i) => stashSel.has(i.id)).map((i) => i.text).join("\n");
+    setAiNotes((prev) => (prev.trim() ? `${prev}\n${text}` : text));
+    try {
+      await markStashUsedAction(ids); // crosses them off the master list
+    } catch {
+      /* non-fatal */
+    }
+    setStashItems((prev) => prev.filter((i) => !stashSel.has(i.id)));
+    setStashSel(new Set());
+    setShowStash(false);
+  }
 
   async function generateDraft() {
     if (!aiNotes.trim()) return;
@@ -213,6 +257,71 @@ export default function PostEditor({ post }: { post: Post | null }) {
                 }
                 className="font-mono w-full rounded-lg border-2 border-ink bg-cream px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-purple/40"
               />
+
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={openStash}
+                  className="font-mono rounded-full border-2 border-ink bg-cream px-3 py-1 text-xs uppercase hover:bg-yellow"
+                >
+                  + Import from stash
+                </button>
+              </div>
+              {showStash && (
+                <div className="mt-2 rounded-lg border-2 border-ink bg-cream p-3">
+                  {stashLoading ? (
+                    <p className="font-mono text-xs text-ink/50">loading…</p>
+                  ) : stashItems.length === 0 ? (
+                    <p className="font-mono text-xs text-ink/50">
+                      Stash is empty.{" "}
+                      <a href="/admin/stash" className="text-purple underline">
+                        Add items
+                      </a>
+                      .
+                    </p>
+                  ) : (
+                    <>
+                      <div className="max-h-48 overflow-y-auto">
+                        {stashItems.map((i) => (
+                          <label
+                            key={i.id}
+                            className="flex cursor-pointer items-start gap-2 py-1 text-sm text-ink"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={stashSel.has(i.id)}
+                              onChange={() => toggleStashSel(i.id)}
+                              className="mt-1"
+                            />
+                            <span className="break-words">{i.text}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={importStash}
+                          disabled={!stashSel.size}
+                          className="font-heading rounded-full border-2 border-ink bg-mint px-4 py-1.5 text-sm text-ink disabled:opacity-50"
+                        >
+                          Add {stashSel.size || ""} to notes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowStash(false)}
+                          className="font-mono text-xs uppercase text-ink/50 hover:text-pink"
+                        >
+                          cancel
+                        </button>
+                        <span className="font-mono text-[11px] text-ink/40">
+                          importing crosses items off your stash
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               {aiError && <p className="mt-2 text-sm text-pink">{aiError}</p>}
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <div className="flex overflow-hidden rounded-full border-2 border-ink">

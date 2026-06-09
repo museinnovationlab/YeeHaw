@@ -76,6 +76,15 @@ export interface Post {
   scheduledFor?: string;
 }
 
+/** A future recommendation idea the user has stashed for an eventual post. */
+export interface StashItem {
+  id: string;
+  text: string; // freeform: a link + a quick note, the way you'd paste into the AI box
+  used: boolean;
+  createdAt: string;
+  usedAt?: string;
+}
+
 export type SubscriberStatus =
   | "subscribed"
   | "unsubscribed"
