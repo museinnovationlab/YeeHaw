@@ -77,12 +77,15 @@ export interface Post {
 }
 
 /** A future recommendation idea the user has stashed for an eventual post. */
+export type StashStatus = "active" | "used" | "removed";
+
 export interface StashItem {
   id: string;
   text: string; // freeform: a link + a quick note, the way you'd paste into the AI box
-  used: boolean;
+  status: StashStatus;
   createdAt: string;
   usedAt?: string;
+  removedAt?: string;
 }
 
 export type SubscriberStatus =

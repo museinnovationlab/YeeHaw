@@ -5,10 +5,10 @@ import { getAdminUser } from "@/lib/auth";
 import {
   addStashItems,
   deleteStashItem,
-  setStashUsed,
-  getUnusedStash,
+  setStashStatus,
+  getActiveStash,
 } from "@/lib/repo/stash";
-import type { StashItem } from "@/lib/types";
+import type { StashItem, StashStatus } from "@/lib/types";
 
 async function requireAdmin() {
   const u = await getAdminUser();
@@ -24,27 +24,29 @@ export async function addStashAction(text: string): Promise<number> {
   return n;
 }
 
+/** Move an item between active / used / removed. */
+export async function setStashStatusAction(id: string, status: StashStatus): Promise<void> {
+  await requireAdmin();
+  await setStashStatus([id], status);
+  revalidatePath("/admin/stash");
+}
+
+/** Permanent delete (from the Removed list). */
 export async function deleteStashAction(id: string): Promise<void> {
   await requireAdmin();
   await deleteStashItem(id);
   revalidatePath("/admin/stash");
 }
 
-export async function toggleStashUsedAction(id: string, used: boolean): Promise<void> {
-  await requireAdmin();
-  await setStashUsed([id], used);
-  revalidatePath("/admin/stash");
-}
-
 /** For the editor's "import from stash" picker. */
 export async function getUnusedStashAction(): Promise<StashItem[]> {
   await requireAdmin();
-  return getUnusedStash();
+  return getActiveStash();
 }
 
-/** Mark imported items as used (cross them off the master list). */
+/** Mark imported items as used (cross them off the active list). */
 export async function markStashUsedAction(ids: string[]): Promise<void> {
   await requireAdmin();
-  await setStashUsed(ids, true);
+  await setStashStatus(ids, "used");
   revalidatePath("/admin/stash");
 }

@@ -5,39 +5,61 @@ import { useRouter } from "next/navigation";
 import {
   addStashAction,
   deleteStashAction,
-  toggleStashUsedAction,
+  setStashStatusAction,
 } from "@/app/admin/(dash)/stash/actions";
-import type { StashItem } from "@/lib/types";
+import type { StashItem, StashStatus } from "@/lib/types";
+
+function Pill({
+  onClick,
+  children,
+  tone = "plain",
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+  tone?: "plain" | "good" | "bad";
+}) {
+  const toneCls =
+    tone === "good"
+      ? "hover:bg-mint"
+      : tone === "bad"
+        ? "hover:bg-pink hover:text-cream"
+        : "hover:bg-yellow";
+  return (
+    <button
+      onClick={onClick}
+      className={`font-mono shrink-0 rounded-full border-2 border-ink/60 bg-cream px-2 py-0.5 text-[10px] uppercase ${toneCls}`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function StashManager({ items }: { items: StashItem[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState("");
   const [showUsed, setShowUsed] = useState(false);
+  const [showRemoved, setShowRemoved] = useState(false);
 
-  const unused = items.filter((i) => !i.used);
-  const used = items.filter((i) => i.used);
+  const active = items.filter((i) => i.status === "active");
+  const used = items.filter((i) => i.status === "used");
+  const removed = items.filter((i) => i.status === "removed");
+
+  const run = (fn: () => Promise<unknown>) =>
+    startTransition(async () => {
+      await fn();
+      router.refresh();
+    });
 
   function add() {
     if (!draft.trim()) return;
-    startTransition(async () => {
+    run(async () => {
       await addStashAction(draft);
       setDraft("");
-      router.refresh();
     });
   }
-  function toggle(id: string, nextUsed: boolean) {
-    startTransition(async () => {
-      await toggleStashUsedAction(id, nextUsed);
-      router.refresh();
-    });
-  }
-  function remove(id: string) {
-    startTransition(async () => {
-      await deleteStashAction(id);
-      router.refresh();
-    });
-  }
+  const setStatus = (id: string, status: StashStatus) => run(() => setStashStatusAction(id, status));
+  const remove = (id: string) => run(() => deleteStashAction(id));
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
@@ -63,76 +85,73 @@ export default function StashManager({ items }: { items: StashItem[] }) {
         </button>
       </div>
 
-      {/* list */}
+      {/* lists */}
       <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-heading text-lg text-ink">
-            Stash <span className="font-mono text-sm text-ink/50">({unused.length} unused)</span>
-          </h2>
-          {used.length > 0 && (
-            <button
-              onClick={() => setShowUsed((v) => !v)}
-              className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-purple"
-            >
-              {showUsed ? "hide" : "show"} used ({used.length})
-            </button>
-          )}
-        </div>
+        <h2 className="font-heading mb-3 text-lg text-ink">
+          Active <span className="font-mono text-sm text-ink/50">({active.length})</span>
+        </h2>
 
-        {unused.length === 0 && (
+        {active.length === 0 && (
           <p className="font-mono rounded-xl border-2 border-dashed border-ink/20 p-6 text-center text-sm text-ink/40">
-            Nothing stashed yet. Add ideas on the left, then import them into a post&apos;s AI box.
+            Nothing active. Add ideas on the left, then import them into a post&apos;s AI box.
           </p>
         )}
-
         <ul className="flex flex-col gap-2">
-          {unused.map((i) => (
+          {active.map((i) => (
             <li
               key={i.id}
               className="yh-shadow-sm flex items-start gap-3 rounded-xl border-2 border-ink bg-cream p-3"
             >
               <p className="flex-1 break-words text-sm text-ink">{i.text}</p>
-              <button
-                onClick={() => toggle(i.id, true)}
-                title="Mark used"
-                className="font-mono shrink-0 rounded-full border-2 border-ink bg-cream px-2 py-0.5 text-[10px] uppercase hover:bg-mint"
-              >
-                ✓ used
-              </button>
-              <button
-                onClick={() => remove(i.id)}
-                title="Delete"
-                className="font-mono shrink-0 rounded-full border-2 border-ink bg-cream px-2 py-0.5 text-[10px] uppercase hover:bg-pink hover:text-cream"
-              >
-                ✕
-              </button>
+              <Pill onClick={() => setStatus(i.id, "used")} tone="good">✓ used</Pill>
+              <Pill onClick={() => setStatus(i.id, "removed")} tone="bad">✕</Pill>
             </li>
           ))}
         </ul>
 
-        {showUsed && used.length > 0 && (
-          <ul className="mt-4 flex flex-col gap-2 opacity-60">
-            {used.map((i) => (
-              <li
-                key={i.id}
-                className="flex items-start gap-3 rounded-xl border-2 border-ink/30 bg-cream p-3"
-              >
-                <p className="flex-1 break-words text-sm text-ink/60 line-through">{i.text}</p>
-                <button
-                  onClick={() => toggle(i.id, false)}
-                  className="font-mono shrink-0 rounded-full border-2 border-ink/40 px-2 py-0.5 text-[10px] uppercase hover:bg-yellow"
-                >
-                  restore
-                </button>
-                <button
-                  onClick={() => remove(i.id)}
-                  className="font-mono shrink-0 rounded-full border-2 border-ink/40 px-2 py-0.5 text-[10px] uppercase hover:bg-pink hover:text-cream"
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
+        {/* Used */}
+        {used.length > 0 && (
+          <div className="mt-8">
+            <button
+              onClick={() => setShowUsed((v) => !v)}
+              className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-purple"
+            >
+              {showUsed ? "▾" : "▸"} Used ({used.length})
+            </button>
+            {showUsed && (
+              <ul className="mt-2 flex flex-col gap-2 opacity-70">
+                {used.map((i) => (
+                  <li key={i.id} className="flex items-start gap-3 rounded-xl border-2 border-ink/30 bg-cream p-3">
+                    <p className="flex-1 break-words text-sm text-ink/60 line-through">{i.text}</p>
+                    <Pill onClick={() => setStatus(i.id, "active")}>restore</Pill>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* Removed */}
+        {removed.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setShowRemoved((v) => !v)}
+              className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-pink"
+            >
+              {showRemoved ? "▾" : "▸"} Removed ({removed.length})
+            </button>
+            {showRemoved && (
+              <ul className="mt-2 flex flex-col gap-2 opacity-70">
+                {removed.map((i) => (
+                  <li key={i.id} className="flex items-start gap-3 rounded-xl border-2 border-dashed border-ink/30 bg-cream p-3">
+                    <p className="flex-1 break-words text-sm text-ink/50 line-through">{i.text}</p>
+                    <Pill onClick={() => setStatus(i.id, "active")} tone="good">restore</Pill>
+                    <Pill onClick={() => remove(i.id)} tone="bad">delete forever</Pill>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
     </div>
