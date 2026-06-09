@@ -16,6 +16,21 @@ if (isCloudinaryConfigured) {
   });
 }
 
+/** Re-host an image from a remote URL onto Cloudinary. Returns the new URL, or
+ *  null if Cloudinary couldn't fetch it (some source CDNs block fetchers). */
+export async function uploadFromUrl(remoteUrl: string): Promise<string | null> {
+  if (!isCloudinaryConfigured) return null;
+  try {
+    const res = await cloudinary.uploader.upload(remoteUrl, {
+      folder: "yeehaw/sources",
+      resource_type: "image",
+    });
+    return res.secure_url;
+  } catch {
+    return null;
+  }
+}
+
 /** Upload an image buffer to Cloudinary under the yeehaw/ folder. Returns the URL. */
 export async function uploadImage(
   buffer: Buffer,

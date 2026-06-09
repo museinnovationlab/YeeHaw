@@ -190,7 +190,7 @@ export default function PostEditor({ post }: { post: Post | null }) {
           {showAi && (
             <div className="mt-2 rounded-xl border-2 border-purple bg-purple/5 p-4">
               <p className="font-mono mb-2 text-xs uppercase tracking-wide text-purple">
-                Paste your links + notes — YeeHaw will draft it in your voice
+                Paste your links + notes — YeeHaw fetches each link, pulls the image, hyperlinks it, credits the source, and drafts it in your voice
               </p>
               <textarea
                 value={aiNotes}
