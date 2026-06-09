@@ -59,6 +59,46 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [emailSubject, setEmailSubject] = useState(post?.emailSubject ?? "");
   const [emailPreviewText, setEmailPreviewText] = useState(post?.emailPreviewText ?? "");
 
+  // AI draft
+  const [showAi, setShowAi] = useState(false);
+  const [aiNotes, setAiNotes] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [editorKey, setEditorKey] = useState(0); // bump to reload editor content
+
+  async function generateDraft() {
+    if (!aiNotes.trim()) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const res = await fetch("/api/ai/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: aiNotes, theme: title, postType }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(
+          b.error === "ai_not_configured"
+            ? "AI isn't configured (add ANTHROPIC_API_KEY)."
+            : "Draft generation failed."
+        );
+      }
+      const draft = await res.json();
+      if (draft.bodyHtml) {
+        setBodyHtml(draft.bodyHtml);
+        setEditorKey((k) => k + 1); // reload the editor with the new content
+      }
+      if (draft.title && !title) setTitle(draft.title);
+      if (draft.dek && !dek) setDek(draft.dek);
+      setShowAi(false);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Draft generation failed.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function onPickFeatured(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -136,9 +176,52 @@ export default function PostEditor({ post }: { post: Post | null }) {
         {/* NOTE: the editor must NOT be wrapped in a <label> — label clicks get
             redirected to the first toolbar button. Use a plain div. */}
         <div>
-          <span className="font-mono text-xs uppercase tracking-wide text-ink/60">Body</span>
-          <div className="mt-1">
-            <RichTextEditor value={bodyHtml} onChange={setBodyHtml} />
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-xs uppercase tracking-wide text-ink/60">Body</span>
+            <button
+              type="button"
+              onClick={() => setShowAi((v) => !v)}
+              className="font-heading yh-shadow-sm rounded-full border-2 border-ink bg-yellow px-3 py-1 text-xs text-ink transition-transform hover:-translate-y-0.5"
+            >
+              ✨ Generate with AI
+            </button>
+          </div>
+
+          {showAi && (
+            <div className="mt-2 rounded-xl border-2 border-purple bg-purple/5 p-4">
+              <p className="font-mono mb-2 text-xs uppercase tracking-wide text-purple">
+                Paste your links + notes — YeeHaw will draft it in your voice
+              </p>
+              <textarea
+                value={aiNotes}
+                onChange={(e) => setAiNotes(e.target.value)}
+                rows={6}
+                placeholder={
+                  "e.g.\nRepo Man (1984) — https://imdb.com/...  weird punk cult classic, recommend near top\nThat olive oil I love — https://...  splurge but worth it\n..."
+                }
+                className="font-mono w-full rounded-lg border-2 border-ink bg-cream px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-purple/40"
+              />
+              {aiError && <p className="mt-2 text-sm text-pink">{aiError}</p>}
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={generateDraft}
+                  disabled={aiBusy || !aiNotes.trim()}
+                  className="font-heading yh-shadow-sm rounded-full border-2 border-ink bg-purple px-5 py-2 text-cream transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+                >
+                  {aiBusy ? "Drafting…" : "Generate Draft ▶"}
+                </button>
+                {bodyHtml && (
+                  <span className="font-mono text-[11px] text-ink/40">
+                    heads up: this replaces the current body
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-2">
+            <RichTextEditor key={editorKey} value={bodyHtml} onChange={setBodyHtml} />
           </div>
         </div>
 
