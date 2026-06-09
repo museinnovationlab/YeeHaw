@@ -19,13 +19,19 @@ Hard rules:
 - Keep it tight and fun.
 
 Output format: return ONLY valid JSON (no markdown fences, no commentary) shaped exactly like:
-{"title": "a short catchy post title", "dek": "a one-sentence summary for the card", "bodyHtml": "the post body as clean semantic HTML possibly containing {{IMAGE_n}} tokens"}
+{"title": "a short catchy post title", "dek": "a one-sentence summary for the card", "seoTitle": "an SEO title ~55 chars", "seoDescription": "a meta description ~150 chars", "emailSubject": "a catchy email subject line, <60 chars", "emailPreviewText": "a one-line inbox preview teaser", "bodyHtml": "the post body as clean semantic HTML possibly containing {{IMAGE_n}} tokens"}
 
-In bodyHtml use ONLY these tags: <p>, <h2>, <h3>, <ul>, <ol>, <li>, <a href>, <strong>, <em>. No <div>, no inline styles, no <img> (use the tokens instead), no <html>/<body> wrappers.`;
+In bodyHtml use ONLY these tags: <p>, <h2>, <h3>, <ul>, <ol>, <li>, <a href>, <strong>, <em>. No <div>, no inline styles, no <img> (use the tokens instead), no <html>/<body> wrappers.
+
+APPEND MODE: if the user says this is append mode, generate ONLY the new recommendation block(s) to add to an existing post — no intro, greeting, or sign-off, and no section header unless the new items clearly start a new section. Put just the item HTML (h3 + paragraph + image token) in bodyHtml, and return empty strings for title, dek, seoTitle, seoDescription, emailSubject, and emailPreviewText.`;
 
 export interface DraftResult {
   title: string;
   dek: string;
+  seoTitle: string;
+  seoDescription: string;
+  emailSubject: string;
+  emailPreviewText: string;
   bodyHtml: string;
 }
 
@@ -89,13 +95,19 @@ export async function generateDraft(input: {
   notes: string;
   theme?: string;
   postType?: string;
+  mode?: "replace" | "append";
 }): Promise<DraftResult> {
   if (!isAiConfigured) throw new Error("AI is not configured (ANTHROPIC_API_KEY missing).");
 
   const links = await enrichLinks(input.notes);
+  const append = input.mode === "append";
 
   const userMsg = [
-    input.theme ? `Theme / title idea: ${input.theme}` : "",
+    append
+      ? "APPEND MODE: generate ONLY the new item block(s) below to append to my existing post (no intro/sign-off). Return empty strings for title/dek/seo/email."
+      : input.theme
+        ? `Theme / title idea: ${input.theme}`
+        : "",
     input.postType === "essay"
       ? "This is an essay-style post (more prose, fewer discrete items) — adapt accordingly."
       : "",
@@ -133,10 +145,18 @@ export async function generateDraft(input: {
 
   let result: DraftResult;
   try {
-    const parsed = JSON.parse(text) as DraftResult;
-    result = { title: parsed.title ?? "", dek: parsed.dek ?? "", bodyHtml: parsed.bodyHtml ?? "" };
+    const parsed = JSON.parse(text) as Partial<DraftResult>;
+    result = {
+      title: parsed.title ?? "",
+      dek: parsed.dek ?? "",
+      seoTitle: parsed.seoTitle ?? "",
+      seoDescription: parsed.seoDescription ?? "",
+      emailSubject: parsed.emailSubject ?? "",
+      emailPreviewText: parsed.emailPreviewText ?? "",
+      bodyHtml: parsed.bodyHtml ?? "",
+    };
   } catch {
-    result = { title: "", dek: "", bodyHtml: text };
+    result = { title: "", dek: "", seoTitle: "", seoDescription: "", emailSubject: "", emailPreviewText: "", bodyHtml: text };
   }
   result.bodyHtml = substituteImages(result.bodyHtml, links);
   return result;

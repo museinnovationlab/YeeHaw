@@ -64,6 +64,7 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [aiNotes, setAiNotes] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiMode, setAiMode] = useState<"replace" | "append">("replace");
   const [editorKey, setEditorKey] = useState(0); // bump to reload editor content
 
   async function generateDraft() {
@@ -74,7 +75,7 @@ export default function PostEditor({ post }: { post: Post | null }) {
       const res = await fetch("/api/ai/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: aiNotes, theme: title, postType }),
+        body: JSON.stringify({ notes: aiNotes, theme: title, postType, mode: aiMode }),
       });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
@@ -86,11 +87,22 @@ export default function PostEditor({ post }: { post: Post | null }) {
       }
       const draft = await res.json();
       if (draft.bodyHtml) {
-        setBodyHtml(draft.bodyHtml);
+        // append mode adds to the existing body; replace mode swaps it out
+        setBodyHtml((prev) =>
+          aiMode === "append" && prev ? `${prev}\n${draft.bodyHtml}` : draft.bodyHtml
+        );
         setEditorKey((k) => k + 1); // reload the editor with the new content
       }
-      if (draft.title && !title) setTitle(draft.title);
-      if (draft.dek && !dek) setDek(draft.dek);
+      // only fill metadata on a full draft (append returns empty metadata)
+      if (aiMode === "replace") {
+        if (draft.title && !title) setTitle(draft.title);
+        if (draft.dek && !dek) setDek(draft.dek);
+        if (draft.seoTitle && !seoTitle) setSeoTitle(draft.seoTitle);
+        if (draft.seoDescription && !seoDescription) setSeoDescription(draft.seoDescription);
+        if (draft.emailSubject && !emailSubject) setEmailSubject(draft.emailSubject);
+        if (draft.emailPreviewText && !emailPreviewText) setEmailPreviewText(draft.emailPreviewText);
+      }
+      setAiNotes("");
       setShowAi(false);
     } catch (e) {
       setAiError(e instanceof Error ? e.message : "Draft generation failed.");
@@ -202,7 +214,21 @@ export default function PostEditor({ post }: { post: Post | null }) {
                 className="font-mono w-full rounded-lg border-2 border-ink bg-cream px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-purple/40"
               />
               {aiError && <p className="mt-2 text-sm text-pink">{aiError}</p>}
-              <div className="mt-3 flex items-center gap-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <div className="flex overflow-hidden rounded-full border-2 border-ink">
+                  {(["replace", "append"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setAiMode(m)}
+                      className={`font-mono px-3 py-1.5 text-xs uppercase ${
+                        aiMode === m ? "bg-ink text-cream" : "bg-cream text-ink hover:bg-yellow"
+                      }`}
+                    >
+                      {m === "replace" ? "Replace body" : "Add to body"}
+                    </button>
+                  ))}
+                </div>
                 <button
                   type="button"
                   onClick={generateDraft}
@@ -213,7 +239,9 @@ export default function PostEditor({ post }: { post: Post | null }) {
                 </button>
                 {bodyHtml && (
                   <span className="font-mono text-[11px] text-ink/40">
-                    heads up: this replaces the current body
+                    {aiMode === "append"
+                      ? "adds to the bottom of the current body"
+                      : "replaces the current body"}
                   </span>
                 )}
               </div>

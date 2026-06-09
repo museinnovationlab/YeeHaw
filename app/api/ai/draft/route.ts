@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       notes,
       theme: body?.theme?.toString(),
       postType: body?.postType?.toString(),
+      mode: body?.mode === "append" ? "append" : "replace",
     });
     return NextResponse.json(draft);
   } catch (e) {
