@@ -6,6 +6,7 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
+import Youtube from "@tiptap/extension-youtube";
 import { useCallback, useRef, useState } from "react";
 
 /** Upload a file to the admin image endpoint, return its URL. */
@@ -80,6 +81,11 @@ function Toolbar({ editor }: { editor: Editor }) {
     if (url) editor.chain().focus().setImage({ src: url }).run();
   }, [editor]);
 
+  const addVideo = useCallback(() => {
+    const url = window.prompt("YouTube video URL");
+    if (url) editor.chain().focus().setYoutubeVideo({ src: url.trim() }).run();
+  }, [editor]);
+
   const setLink = useCallback(() => {
     const prev = editor.getAttributes("link").href as string | undefined;
     const url = window.prompt("Link URL", prev ?? "https://");
@@ -149,6 +155,9 @@ function Toolbar({ editor }: { editor: Editor }) {
       <Btn title="Image by URL" onClick={addImageByUrl}>
         🌐
       </Btn>
+      <Btn title="YouTube video" onClick={addVideo}>
+        📺
+      </Btn>
       <input
         ref={fileRef}
         type="file"
@@ -182,6 +191,7 @@ export default function RichTextEditor({
       StarterKit.configure({ heading: { levels: [2, 3] } }),
       Underline,
       Image.configure({ inline: false, allowBase64: false }),
+      Youtube.configure({ nocookie: true, controls: true, modestBranding: true, width: 640, height: 360 }),
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder }),
     ],

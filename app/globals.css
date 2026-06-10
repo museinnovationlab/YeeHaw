@@ -155,6 +155,19 @@ body {
   border-radius: 0.75rem;
   border: 2px solid var(--color-ink);
 }
+/* Video embeds (YouTube/Vimeo) — responsive 16:9, matching the image frame */
+.yh-prose div[data-youtube-video],
+.yh-prose iframe {
+  margin: 1.25em auto;
+}
+.yh-prose iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border-radius: 0.75rem;
+  border: 2px solid var(--color-ink);
+}
 .yh-prose figure {
   margin: 1.5em 0;
   text-align: center;
