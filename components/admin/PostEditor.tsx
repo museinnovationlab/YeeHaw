@@ -17,7 +17,6 @@ const STAMPS = [
   "powerUp",
   "goodStuff",
   "nowPlaying",
-  "secretArea",
   "yeehaw",
   "new",
   "rewind",

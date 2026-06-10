@@ -6,6 +6,7 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import AffiliateDisclosure from "@/components/AffiliateDisclosure";
 import Sticker from "@/components/Sticker";
+import PostStamps from "@/components/PostStamps";
 import { stamps, type StampKey } from "@/lib/brand";
 import { formatDateLong } from "@/lib/format";
 import { getPostBySlug, getPublishedPosts } from "@/lib/repo/posts";
@@ -45,7 +46,9 @@ export default async function PostPage({
     <div className="overflow-x-clip">
       <SiteHeader />
 
-      <article className="mx-auto max-w-2xl px-4 py-12 sm:py-16">
+      <div className="relative mx-auto max-w-6xl">
+        <PostStamps seed={post.slug} />
+        <article className="relative z-10 mx-auto max-w-2xl px-4 py-12 sm:py-16">
         <div className="mb-6 flex items-center gap-3">
           <Sticker src={stamp} className="h-9 w-auto" />
           <span className="font-mono text-xs uppercase tracking-wide text-ink/50">
@@ -89,7 +92,8 @@ export default async function PostPage({
             ← Back to the Tape Rack
           </a>
         </div>
-      </article>
+        </article>
+      </div>
 
       <SiteFooter />
     </div>

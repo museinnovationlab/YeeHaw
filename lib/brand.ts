@@ -33,7 +33,6 @@ export const stamps = {
   nowPlaying: `${PARTS}/stamps/stamp-now-playing.png`,
   powerUp: `${PARTS}/stamps/stamp-power-up.png`,
   weirdFind: `${PARTS}/stamps/stamp-weird-find.png`,
-  secretArea: `${PARTS}/stamps/stamp-secret-area.png`,
   fieldNote: `${PARTS}/stamps/stamp-field-note.png`,
   rewind: `${PARTS}/stamps/stamp-rewind.png`,
 } as const;
