@@ -97,6 +97,7 @@ export type SubscriberStatus =
 export interface Subscriber {
   id: string;
   email: string;
+  name?: string;
   status: SubscriberStatus;
   source: "site" | "import" | "manual" | "substack" | "other";
   createdAt: string;

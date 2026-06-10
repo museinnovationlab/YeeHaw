@@ -26,6 +26,12 @@ export default async function AdminLayout({
           </a>
           <div className="flex items-center gap-4">
             <a
+              href="/admin/subscribers"
+              className="font-mono text-xs uppercase tracking-wide text-cream/70 hover:text-yellow"
+            >
+              Subscribers
+            </a>
+            <a
               href="/admin/stash"
               className="font-mono text-xs uppercase tracking-wide text-cream/70 hover:text-yellow"
             >
