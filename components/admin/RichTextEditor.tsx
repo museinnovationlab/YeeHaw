@@ -7,6 +7,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import Youtube from "@tiptap/extension-youtube";
+import { Vimeo, vimeoEmbedSrc } from "./VimeoNode";
 import { useCallback, useRef, useState } from "react";
 
 /** Upload a file to the admin image endpoint, return its URL. */
@@ -86,6 +87,17 @@ function Toolbar({ editor }: { editor: Editor }) {
     if (url) editor.chain().focus().setYoutubeVideo({ src: url.trim() }).run();
   }, [editor]);
 
+  const addVimeo = useCallback(() => {
+    const url = window.prompt("Vimeo video URL");
+    if (!url) return;
+    const src = vimeoEmbedSrc(url.trim());
+    if (!src) {
+      window.alert("Couldn't find a Vimeo video ID in that URL.");
+      return;
+    }
+    editor.chain().focus().insertContent({ type: "vimeo", attrs: { src } }).run();
+  }, [editor]);
+
   const setLink = useCallback(() => {
     const prev = editor.getAttributes("link").href as string | undefined;
     const url = window.prompt("Link URL", prev ?? "https://");
@@ -158,6 +170,9 @@ function Toolbar({ editor }: { editor: Editor }) {
       <Btn title="YouTube video" onClick={addVideo}>
         📺
       </Btn>
+      <Btn title="Vimeo video" onClick={addVimeo}>
+        🎬
+      </Btn>
       <input
         ref={fileRef}
         type="file"
@@ -192,6 +207,7 @@ export default function RichTextEditor({
       Underline,
       Image.configure({ inline: false, allowBase64: false }),
       Youtube.configure({ nocookie: true, controls: true, modestBranding: true, width: 640, height: 360 }),
+      Vimeo,
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder }),
     ],
