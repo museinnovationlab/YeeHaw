@@ -7,10 +7,12 @@ import SiteFooter from "@/components/SiteFooter";
 import AffiliateDisclosure from "@/components/AffiliateDisclosure";
 import Sticker from "@/components/Sticker";
 import PostStamps from "@/components/PostStamps";
+import JsonLd from "@/components/JsonLd";
 import { stamps, type StampKey } from "@/lib/brand";
 import { formatDateLong } from "@/lib/format";
 import { getPostBySlug, getPublishedPosts } from "@/lib/repo/posts";
 import { cleanHtml } from "@/lib/sanitize";
+import { SITE_URL, SITE_NAME, SITE_AUTHOR } from "@/lib/site";
 
 export const revalidate = 300;
 
@@ -42,8 +44,28 @@ export default async function PostPage({
 
   const stamp = stamps[(post.stamp as StampKey) ?? "nowPlaying"] ?? stamps.nowPlaying;
 
+  const postUrl = `${SITE_URL}/posts/${post.slug}`;
+  const articleLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.seoTitle ?? post.title,
+    description: post.seoDescription ?? post.dek,
+    ...(post.publishedAt ? { datePublished: post.publishedAt } : {}),
+    dateModified: post.updatedAt ?? post.publishedAt,
+    ...(post.featuredImageUrl ? { image: post.featuredImageUrl } : {}),
+    author: { "@type": "Person", name: SITE_AUTHOR },
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/icon.png` },
+    },
+    mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
+    url: postUrl,
+  };
+
   return (
     <div className="overflow-x-clip">
+      <JsonLd data={articleLd} />
       <SiteHeader />
 
       <div className="relative mx-auto max-w-6xl">

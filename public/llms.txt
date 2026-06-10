@@ -1,0 +1,18 @@
+# YeeHaw
+
+> A Saturday Morning Mixtape of weird finds, useful ideas, and good little detours — a curated newsletter of products, movies, music, articles, and internet oddities. No doomscrolling required.
+
+YeeHaw is a personal recommendations newsletter written by Taylor. Each edition rounds up a handful of genuinely good things from around the internet — a movie worth your time, an album on repeat, a useful product, a strange and delightful corner of the web — with a short personal note on each.
+
+## Pages
+- [Latest editions / archive](https://yeehaw.io/archive): every published edition of the newsletter
+- [About](https://yeehaw.io/about): what YeeHaw is and who makes it
+- [Subscribe](https://yeehaw.io/): join the newsletter ("The YeeHaw Club")
+
+## Feeds
+- [RSS feed](https://yeehaw.io/rss.xml)
+- [Sitemap](https://yeehaw.io/sitemap.xml)
+
+## Notes
+- Some outbound product links may be affiliate links; this is disclosed on posts that contain them.
+- The tone is nostalgic, friendly, and lightly funny — think 80s/90s rec-room, not corporate.

@@ -2,16 +2,36 @@ import Sticker from "@/components/Sticker";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import SubscribeForm from "@/components/SubscribeForm";
+import JsonLd from "@/components/JsonLd";
 import { objects, logos, stamps, type StampKey } from "@/lib/brand";
 import { getPublishedPosts } from "@/lib/repo/posts";
 import { formatDateShort } from "@/lib/format";
+import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from "@/lib/site";
 
 export const revalidate = 120;
+
+const siteLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE_NAME,
+    url: SITE_URL,
+    description: SITE_DESCRIPTION,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: SITE_NAME,
+    url: SITE_URL,
+    logo: `${SITE_URL}/icon.png`,
+  },
+];
 
 export default async function Home() {
   const posts = (await getPublishedPosts()).slice(0, 4);
   return (
     <div className="overflow-x-clip">
+      <JsonLd data={siteLd} />
       {/* ---- Header --------------------------------------------------- */}
       <SiteHeader />
 
