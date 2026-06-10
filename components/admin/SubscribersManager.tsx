@@ -13,6 +13,19 @@ function csvEscape(v: string) {
   return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
+function fmtDateTime(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default function SubscribersManager({
   subscribers,
   counts,
@@ -47,8 +60,15 @@ export default function SubscribersManager({
 
   function exportCsv() {
     const rows = [
-      ["email", "name", "status", "source", "createdAt"],
-      ...subscribers.map((s) => [s.email, s.name ?? "", s.status, s.source, s.createdAt]),
+      ["email", "name", "status", "source", "createdAt", "unsubscribedAt"],
+      ...subscribers.map((s) => [
+        s.email,
+        s.name ?? "",
+        s.status,
+        s.source,
+        s.createdAt,
+        s.unsubscribedAt ?? "",
+      ]),
     ];
     const csv = rows.map((r) => r.map((c) => csvEscape(String(c))).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -120,6 +140,9 @@ export default function SubscribersManager({
                 <p className="truncate text-sm text-ink">{s.email}</p>
                 {s.name && <p className="font-mono truncate text-[11px] text-ink/50">{s.name}</p>}
               </div>
+              <span className="font-mono hidden shrink-0 text-[10px] text-ink/40 md:inline" title="Subscribed">
+                {fmtDateTime(s.createdAt)}
+              </span>
               <span className="font-mono shrink-0 text-[10px] uppercase text-ink/40">{s.source}</span>
               <button
                 onClick={() => run(() => setSubscriberStatusAction(s.email, "unsubscribed"))}
@@ -131,24 +154,31 @@ export default function SubscribersManager({
           ))}
         </ul>
 
-        {unsub.length > 0 && (
-          <div className="mt-8">
-            <button
-              onClick={() => setShowUnsub((v) => !v)}
-              className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-pink"
-            >
-              {showUnsub ? "▾" : "▸"} Unsubscribed ({unsub.length})
-            </button>
-            {showUnsub && (
+        <div className="mt-8">
+          <button
+            onClick={() => setShowUnsub((v) => !v)}
+            className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-pink"
+          >
+            {showUnsub ? "▾" : "▸"} Unsubscribed ({unsub.length})
+          </button>
+          {showUnsub &&
+            (unsub.length === 0 ? (
+              <p className="font-mono mt-2 text-xs text-ink/40">No unsubscribes yet.</p>
+            ) : (
               <ul className="mt-2 flex flex-col gap-2 opacity-70">
                 {unsub.map((s) => (
                   <li
                     key={s.id}
                     className="flex items-center gap-3 rounded-xl border-2 border-ink/30 bg-cream p-3"
                   >
-                    <p className="min-w-0 flex-1 truncate text-sm text-ink/60 line-through">
-                      {s.email}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-ink/60 line-through">{s.email}</p>
+                      {s.unsubscribedAt && (
+                        <p className="font-mono truncate text-[11px] text-ink/40">
+                          unsubscribed {fmtDateTime(s.unsubscribedAt)}
+                        </p>
+                      )}
+                    </div>
                     <button
                       onClick={() => run(() => setSubscriberStatusAction(s.email, "subscribed"))}
                       className="font-mono shrink-0 rounded-full border-2 border-ink/60 bg-cream px-2 py-0.5 text-[10px] uppercase hover:bg-mint"
@@ -164,9 +194,8 @@ export default function SubscribersManager({
                   </li>
                 ))}
               </ul>
-            )}
-          </div>
-        )}
+            ))}
+        </div>
       </div>
     </div>
   );
