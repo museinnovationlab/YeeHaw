@@ -24,6 +24,17 @@ const STAMPS = [
 
 const STATUSES: PostStatus[] = ["idea", "draft", "reviewed", "scheduled", "published", "archived"];
 
+// ISO -> value for <input type="datetime-local"> (local time, "YYYY-MM-DDTHH:mm")
+function toLocalDatetime(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
 function field(label: string, el: React.ReactNode, hint?: string) {
   return (
     <label className="block">
@@ -53,6 +64,10 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [uploadingFeatured, setUploadingFeatured] = useState(false);
   const featuredRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<PostStatus>(post?.status ?? "draft");
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState(
+    post?.scheduledFor ? toLocalDatetime(post.scheduledFor) : ""
+  );
   const [bodyHtml, setBodyHtml] = useState(post?.bodyHtml ?? "");
   const [publishDate, setPublishDate] = useState(
     post?.publishedAt ? post.publishedAt.slice(0, 10) : ""
@@ -189,6 +204,10 @@ export default function PostEditor({ post }: { post: Post | null }) {
           bodyHtml,
           featuredImageUrl,
           publishedAt: publishDate ? new Date(publishDate).toISOString() : undefined,
+          scheduledFor:
+            effectiveStatus === "scheduled" && scheduleAt
+              ? new Date(scheduleAt).toISOString()
+              : undefined,
           seoTitle,
           seoDescription,
           emailSubject,
@@ -386,14 +405,55 @@ export default function PostEditor({ post }: { post: Post | null }) {
           </button>
           {status !== "published" && (
             <button
-              onClick={() => save("published")}
+              onClick={() => setShowSchedule((v) => !v)}
               disabled={pending || !title}
               className="font-heading yh-shadow-sm rounded-full border-2 border-ink bg-pink px-4 py-2.5 text-cream transition-transform hover:-translate-y-0.5 disabled:opacity-50"
             >
-              Publish
+              Publish ▾
             </button>
           )}
         </div>
+
+        {showSchedule && status !== "published" && (
+          <div className="flex flex-col gap-2 rounded-xl border-2 border-ink/40 bg-cream p-3">
+            <button
+              onClick={() => {
+                setShowSchedule(false);
+                save("published");
+              }}
+              disabled={pending || !title}
+              className="font-heading yh-shadow-sm rounded-full border-2 border-ink bg-pink px-4 py-2 text-sm text-cream transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+            >
+              Publish now ▶
+            </button>
+            <div className="font-mono text-center text-[10px] uppercase tracking-wide text-ink/40">
+              — or schedule for later —
+            </div>
+            <input
+              type="datetime-local"
+              value={scheduleAt}
+              onChange={(e) => setScheduleAt(e.target.value)}
+              className={inputClass}
+            />
+            <button
+              onClick={() => {
+                setShowSchedule(false);
+                save("scheduled");
+              }}
+              disabled={pending || !title || !scheduleAt}
+              className="font-heading yh-shadow-sm rounded-full border-2 border-ink bg-cyan px-4 py-2 text-sm text-ink transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+            >
+              Schedule ⏳
+            </button>
+          </div>
+        )}
+
+        {status === "scheduled" && scheduleAt && (
+          <p className="font-mono rounded-lg border-2 border-cyan bg-cyan/10 px-3 py-2 text-xs text-ink">
+            ⏳ Scheduled for {new Date(scheduleAt).toLocaleString()} — editable until then;
+            no email goes out until it publishes.
+          </p>
+        )}
         {error && <p className="text-sm text-pink">{error}</p>}
         {savedAt && !error && (
           <p className="font-mono text-[11px] text-ink/50">Saved at {savedAt}</p>

@@ -74,6 +74,8 @@ export interface Post {
   reviewedAt?: string;
   publishedAt?: string;
   scheduledFor?: string;
+  /** set once the broadcast email goes out, so editing later never re-sends */
+  emailSentAt?: string;
 }
 
 /** A future recommendation idea the user has stashed for an eventual post. */

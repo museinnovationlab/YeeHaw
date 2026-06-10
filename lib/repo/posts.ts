@@ -37,6 +37,8 @@ export interface PostInput {
   categories?: string[];
   /** ISO date — set for archive imports / manual date overrides */
   publishedAt?: string;
+  /** ISO datetime — when status is "scheduled", auto-publish at/after this time */
+  scheduledFor?: string;
   importedFromArchive?: boolean;
   hasAffiliateLinks?: boolean;
 }
@@ -79,6 +81,10 @@ export async function savePost(input: PostInput): Promise<{ id: string; slug: st
     updatedAt: now,
   };
   if (input.publishedAt) data.publishedAt = new Date(input.publishedAt);
+  // Scheduling: store the target time only while status is "scheduled".
+  if (input.status === "scheduled" && input.scheduledFor) {
+    data.scheduledFor = new Date(input.scheduledFor);
+  }
 
   if (input.id) {
     const ref = db.collection(COLLECTION).doc(input.id);
@@ -87,6 +93,8 @@ export async function savePost(input: PostInput): Promise<{ id: string; slug: st
       const existing = await ref.get();
       if (!existing.data()?.publishedAt) data.publishedAt = now;
     }
+    // Leaving the scheduled state clears the pending time.
+    if (input.status !== "scheduled") data.scheduledFor = FieldValue.delete();
     await ref.set(data, { merge: true });
     return { id: input.id, slug };
   }
@@ -95,6 +103,39 @@ export async function savePost(input: PostInput): Promise<{ id: string; slug: st
   if (input.status === "published" && !data.publishedAt) data.publishedAt = now;
   const ref = await db.collection(COLLECTION).add(data);
   return { id: ref.id, slug };
+}
+
+/**
+ * Publish any scheduled posts whose scheduledFor time has arrived. Called by the
+ * cron endpoint. Idempotent: a post that's already published is never touched.
+ * Returns the slugs that were just published (so the caller can fire emails).
+ */
+export async function publishDueScheduledPosts(): Promise<
+  { id: string; slug: string; title: string }[]
+> {
+  if (!isFirebaseAdminConfigured) return [];
+  const db = adminDb();
+  const now = Date.now();
+  // No composite index needed: filter the (small) scheduled set in memory.
+  const snap = await db.collection(COLLECTION).where("status", "==", "scheduled").get();
+  const published: { id: string; slug: string; title: string }[] = [];
+
+  for (const doc of snap.docs) {
+    const d = doc.data() as Record<string, unknown>;
+    const when = (d.scheduledFor as { toDate?: () => Date })?.toDate?.();
+    if (!when || when.getTime() > now) continue; // not due yet
+    await doc.ref.set(
+      {
+        status: "published",
+        publishedAt: when, // publish AT the scheduled time, not the cron tick
+        scheduledFor: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    published.push({ id: doc.id, slug: (d.slug as string) ?? doc.id, title: (d.title as string) ?? "" });
+  }
+  return published;
 }
 
 // Convert a Firestore doc (with Timestamp fields) into a plain, serializable Post.
@@ -115,6 +156,7 @@ function toPost(id: string, data: Record<string, unknown>): Post {
     reviewedAt: iso(data.reviewedAt),
     publishedAt: iso(data.publishedAt),
     scheduledFor: iso(data.scheduledFor),
+    emailSentAt: iso(data.emailSentAt),
   };
 }
 
