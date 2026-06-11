@@ -1,6 +1,7 @@
 import { getAllPosts } from "@/lib/repo/posts";
 import { formatDateLong } from "@/lib/format";
 import type { PostStatus } from "@/lib/types";
+import DeletePostButton from "@/components/admin/DeletePostButton";
 
 const STATUS_STYLES: Record<PostStatus, string> = {
   idea: "bg-ink/10 text-ink",
@@ -55,12 +56,13 @@ export default async function Dashboard() {
               <th className="px-4 py-2 font-mono text-xs uppercase">Type</th>
               <th className="px-4 py-2 font-mono text-xs uppercase">Status</th>
               <th className="px-4 py-2 font-mono text-xs uppercase">Updated</th>
+              <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {posts.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-ink/50">
+                <td colSpan={5} className="px-4 py-6 text-center text-ink/50">
                   No posts yet. Hit “New Post” to start your first mixtape.
                 </td>
               </tr>
@@ -87,6 +89,9 @@ export default async function Dashboard() {
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-ink/50">
                   {formatDateLong(p.updatedAt)}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <DeletePostButton id={p.id} slug={p.slug} title={p.title} />
                 </td>
               </tr>
             ))}

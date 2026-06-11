@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getAdminUser } from "@/lib/auth";
-import { savePost, type PostInput } from "@/lib/repo/posts";
+import { savePost, deletePost, type PostInput } from "@/lib/repo/posts";
 import { getWeekendPicks, renderWhatToWatchHtml, isTmdbConfigured } from "@/lib/tmdb";
 
 export async function savePostAction(input: PostInput): Promise<{ id: string; slug: string }> {
@@ -18,6 +18,17 @@ export async function savePostAction(input: PostInput): Promise<{ id: string; sl
   revalidatePath("/admin");
   revalidatePath(`/posts/${res.slug}`);
   return res;
+}
+
+/** Permanently delete a post. */
+export async function deletePostAction(id: string, slug?: string): Promise<void> {
+  const user = await getAdminUser();
+  if (!user) throw new Error("Unauthorized");
+  await deletePost(id);
+  revalidatePath("/");
+  revalidatePath("/archive");
+  revalidatePath("/admin");
+  if (slug) revalidatePath(`/posts/${slug}`);
 }
 
 /** Build a "What to Watch This Weekend" HTML block from TMDb + the sports

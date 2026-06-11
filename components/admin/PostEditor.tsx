@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import RichTextEditor from "./RichTextEditor";
+import DeletePostButton from "./DeletePostButton";
 import { savePostAction, generateWhatToWatchAction } from "@/app/admin/(dash)/posts/actions";
 import {
   getUnusedStashAction,
@@ -553,6 +554,18 @@ export default function PostEditor({ post }: { post: Post | null }) {
           <a href={`/posts/${slug}`} target="_blank" className="font-mono text-center text-xs uppercase tracking-wide text-purple hover:text-pink">
             View live ↗
           </a>
+        )}
+        {savedId && (
+          <div className="mt-2 border-t-2 border-ink/10 pt-3">
+            <DeletePostButton
+              id={savedId}
+              slug={slug}
+              title={title}
+              redirectTo="/admin"
+              label="Delete post"
+              className="font-heading w-full rounded-full border-2 border-pink bg-cream px-4 py-2 text-sm text-pink transition-colors hover:bg-pink hover:text-cream disabled:opacity-50"
+            />
+          </div>
         )}
       </aside>
     </div>

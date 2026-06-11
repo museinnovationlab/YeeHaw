@@ -105,6 +105,12 @@ export async function savePost(input: PostInput): Promise<{ id: string; slug: st
   return { id: ref.id, slug };
 }
 
+/** Permanently delete a post. */
+export async function deletePost(id: string): Promise<void> {
+  if (!isFirebaseAdminConfigured) return;
+  await adminDb().collection(COLLECTION).doc(id).delete();
+}
+
 /**
  * Publish any scheduled posts whose scheduledFor time has arrived. Called by the
  * cron endpoint. Idempotent: a post that's already published is never touched.
