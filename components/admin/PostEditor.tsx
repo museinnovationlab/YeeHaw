@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import RichTextEditor from "./RichTextEditor";
-import { savePostAction } from "@/app/admin/(dash)/posts/actions";
+import { savePostAction, generateWhatToWatchAction } from "@/app/admin/(dash)/posts/actions";
 import {
   getUnusedStashAction,
   markStashUsedAction,
@@ -77,6 +77,7 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiMode, setAiMode] = useState<"replace" | "append">("replace");
   const [editorKey, setEditorKey] = useState(0); // bump to reload editor content
+  const [w2wBusy, setW2wBusy] = useState(false);
 
   // stash picker
   const [stashItems, setStashItems] = useState<StashItem[]>([]);
@@ -221,6 +222,21 @@ export default function PostEditor({ post }: { post: Post | null }) {
     });
   }
 
+  async function insertWhatToWatch() {
+    if (w2wBusy) return;
+    setW2wBusy(true);
+    setError(null);
+    try {
+      const { html } = await generateWhatToWatchAction();
+      setBodyHtml((prev) => (prev ? `${prev}\n${html}` : html));
+      setEditorKey((k) => k + 1); // reload editor with the inserted section
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't fetch this weekend's picks.");
+    } finally {
+      setW2wBusy(false);
+    }
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
       {/* main column */}
@@ -245,13 +261,24 @@ export default function PostEditor({ post }: { post: Post | null }) {
         <div>
           <div className="flex items-center justify-between">
             <span className="font-mono text-xs uppercase tracking-wide text-ink/60">Body</span>
-            <button
-              type="button"
-              onClick={() => setShowAi((v) => !v)}
-              className="font-heading yh-shadow-sm rounded-full border-2 border-ink bg-yellow px-3 py-1 text-xs text-ink transition-transform hover:-translate-y-0.5"
-            >
-              ✨ Generate with AI
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={insertWhatToWatch}
+                disabled={w2wBusy}
+                title="Insert this weekend's TV/streaming releases + marquee sports"
+                className="font-heading yh-shadow-sm rounded-full border-2 border-ink bg-cyan px-3 py-1 text-xs text-ink transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+              >
+                {w2wBusy ? "…" : "📺 What to Watch"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAi((v) => !v)}
+                className="font-heading yh-shadow-sm rounded-full border-2 border-ink bg-yellow px-3 py-1 text-xs text-ink transition-transform hover:-translate-y-0.5"
+              >
+                ✨ Generate with AI
+              </button>
+            </div>
           </div>
 
           {showAi && (
