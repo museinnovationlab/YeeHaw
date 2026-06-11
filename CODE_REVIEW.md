@@ -1,5 +1,12 @@
 # YeeHaw Code Review — 2026-06-10
 
+> **STATUS (2026-06-10):** The high-value, low-risk batch is DONE and deployed —
+> **1.1, 1.2, 1.3, 2.2, 2.3, 2.4, 2.6, 3.3**. Everything else is intentionally
+> **deferred** (low urgency / higher regression risk): 1.5, 1.6, 2.1 (not an
+> actual bug — server renders dates in UTC), 2.5, 2.7, 2.8, 2.9, and all of P3
+> except 3.3. Rate limiting (1.4) was moved into the email work (it matters once
+> welcome emails exist). Do NOT re-do the completed items.
+
 Full-codebase review (security, correctness/performance, maintainability).
 Each item has a concrete fix spec. Work top-to-bottom; run `npx tsc --noEmit`
 after each section. Do NOT implement anything in the "REJECTED" section at the
