@@ -40,6 +40,8 @@ export interface WatchPick {
   tmdbId: number;
   overview: string;
   providers: string[];
+  /** TMDb "where to watch" page — lists each service with its deep link. */
+  link?: string;
   reason: "premiere" | "new-episodes" | "trending";
   date?: string;
 }
@@ -91,15 +93,20 @@ type RawTitle = {
   vote_count?: number;
 };
 
-/** Which of OUR services currently stream a given title (flatrate, US). */
-async function providersFor(type: "tv" | "movie", id: number): Promise<string[]> {
+/** Which of OUR services currently stream a given title (flatrate, US) + the
+ *  TMDb "where to watch" link (which carries the real per-service deep links). */
+async function providersFor(
+  type: "tv" | "movie",
+  id: number
+): Promise<{ names: string[]; link?: string }> {
   const j = (await tmdb(`/${type}/${id}/watch/providers`, {})) as {
-    results?: { US?: { flatrate?: { provider_id: number }[] } };
+    results?: { US?: { flatrate?: { provider_id: number }[]; link?: string } };
   };
-  const flat = j.results?.US?.flatrate ?? [];
+  const us = j.results?.US;
+  const flat = us?.flatrate ?? [];
   const names = new Set<string>();
   for (const p of flat) if (OURS[p.provider_id]) names.add(OURS[p.provider_id]);
-  return [...names];
+  return { names: [...names], link: us?.link };
 }
 
 export async function getWeekendPicks(now: Date): Promise<WeekendPicks> {
@@ -182,7 +189,9 @@ export async function getWeekendPicks(now: Date): Promise<WeekendPicks> {
   const withProviders = async (picks: WatchPick[], cap: number) => {
     const out: WatchPick[] = [];
     for (const p of picks) {
-      p.providers = await providersFor(p.type, p.tmdbId);
+      const r = await providersFor(p.type, p.tmdbId);
+      p.providers = r.names;
+      p.link = r.link;
       if (p.providers.length || p.reason === "premiere") out.push(p);
       if (out.length >= cap) break;
     }
@@ -211,8 +220,9 @@ const REASON_LABEL: Record<WatchPick["reason"], string> = {
 /** Render the picks as an HTML block to drop into the editor. */
 export function renderWhatToWatchHtml(picks: WeekendPicks): string {
   const line = (p: WatchPick) => {
+    const name = `<strong>${esc(p.title)}</strong>`;
+    const tag = p.link ? `<a href="${esc(p.link)}">${name}</a>` : name;
     const where = p.providers.length ? ` <em>(${esc(p.providers.join(", "))})</em>` : "";
-    const tag = `<strong>${esc(p.title)}</strong>`;
     const why = ` — ${REASON_LABEL[p.reason]}`;
     return `<li>${tag}${where}${why}</li>`;
   };
@@ -231,7 +241,8 @@ export function renderWhatToWatchHtml(picks: WeekendPicks): string {
     parts.push(`<h3>On the sports front</h3>`, "<ul>");
     for (const e of picks.sports) {
       const note = e.note ? ` <em>(${esc(e.note)})</em>` : "";
-      parts.push(`<li><strong>${esc(e.name)}</strong>${note}</li>`);
+      const net = e.network ? ` — ${esc(e.network)}` : "";
+      parts.push(`<li><strong>${esc(e.name)}</strong>${note}${net}</li>`);
     }
     parts.push("</ul>");
   }
