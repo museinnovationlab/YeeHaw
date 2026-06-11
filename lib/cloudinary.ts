@@ -24,6 +24,7 @@ export async function uploadFromUrl(remoteUrl: string): Promise<string | null> {
     const res = await cloudinary.uploader.upload(remoteUrl, {
       folder: "yeehaw/sources",
       resource_type: "image",
+      timeout: 60000,
     });
     return res.secure_url;
   } catch {
@@ -45,6 +46,7 @@ export async function uploadImage(
         {
           folder: "yeehaw",
           resource_type: "image",
+          timeout: 60000,
           // light auto-optimization; originals stay retrievable
           use_filename: Boolean(filename),
           filename_override: filename,

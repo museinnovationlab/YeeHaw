@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
   if (result === "invalid") {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
-  // "added" and "exists" both look like success to the visitor.
-  return NextResponse.json({ ok: true, status: result });
+  // Same response whether newly added or already on the list — don't leak
+  // membership (email enumeration).
+  return NextResponse.json({ ok: true });
 }

@@ -3,6 +3,19 @@ import { SITE_URL, SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION } from "@/lib/site"
 
 export const revalidate = 3600;
 
+function imageMime(url: string): string {
+  const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+  const map: Record<string, string> = {
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
+    avif: "image/avif",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+  };
+  return (ext && map[ext]) || "image/jpeg";
+}
+
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -19,7 +32,7 @@ export async function GET() {
     .map((p) => {
       const url = `${SITE_URL}/posts/${p.slug}`;
       const date = p.publishedAt ? new Date(p.publishedAt).toUTCString() : "";
-      const desc = p.seoDescription ?? p.dek ?? "";
+      const desc = (p.seoDescription ?? p.dek ?? "").slice(0, 500);
       return [
         "    <item>",
         `      <title>${esc(p.seoTitle ?? p.title)}</title>`,
@@ -27,7 +40,9 @@ export async function GET() {
         `      <guid isPermaLink="true">${url}</guid>`,
         date ? `      <pubDate>${date}</pubDate>` : "",
         `      <description>${esc(desc)}</description>`,
-        p.featuredImageUrl ? `      <enclosure url="${esc(p.featuredImageUrl)}" type="image/jpeg" />` : "",
+        p.featuredImageUrl
+          ? `      <enclosure url="${esc(p.featuredImageUrl)}" type="${imageMime(p.featuredImageUrl)}" />`
+          : "",
         "    </item>",
       ]
         .filter(Boolean)

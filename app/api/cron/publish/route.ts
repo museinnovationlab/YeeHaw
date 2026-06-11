@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { timingSafeEqual } from "node:crypto";
 import { publishDueScheduledPosts } from "@/lib/repo/posts";
 
 // Publishes scheduled posts whose time has come. Triggered by a scheduler
@@ -7,14 +8,20 @@ import { publishDueScheduledPosts } from "@/lib/repo/posts";
 // external pinger like cron-job.org can send the same header). Idempotent.
 export const dynamic = "force-dynamic";
 
+function safeEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ba.length === bb.length && timingSafeEqual(ba, bb);
+}
+
 async function handle(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     return NextResponse.json({ error: "cron_not_configured" }, { status: 503 });
   }
+  // Header only — never a query param (secrets in URLs end up in access logs).
   const auth = req.headers.get("authorization");
-  const keyParam = req.nextUrl.searchParams.get("key");
-  if (auth !== `Bearer ${secret}` && keyParam !== secret) {
+  if (!auth || !safeEqual(auth, `Bearer ${secret}`)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

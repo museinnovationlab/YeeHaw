@@ -47,17 +47,21 @@ export async function addSubscriber(
   const email = emailId(rawEmail);
   if (!isValidEmail(email)) return "invalid";
   const ref = adminDb().collection(COL).doc(email);
-  const snap = await ref.get();
-  if (snap.exists) return "exists";
-  await ref.set({
-    email,
-    status: "subscribed",
-    source: opts?.source ?? "site",
-    ...(opts?.name ? { name: opts.name } : {}),
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-  return "added";
+  // Atomic create: fails with ALREADY_EXISTS instead of a get-then-set race.
+  try {
+    await ref.create({
+      email,
+      status: "subscribed",
+      source: opts?.source ?? "site",
+      ...(opts?.name ? { name: opts.name } : {}),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return "added";
+  } catch (e) {
+    if ((e as { code?: number }).code === 6) return "exists"; // gRPC ALREADY_EXISTS
+    throw e;
+  }
 }
 
 /** Bulk add (admin importer / seed). Skips existing, reports a tally. */

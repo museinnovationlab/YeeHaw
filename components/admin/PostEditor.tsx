@@ -9,18 +9,11 @@ import {
   markStashUsedAction,
 } from "@/app/admin/(dash)/stash/actions";
 import type { Post, PostStatus, PostType, StashItem } from "@/lib/types";
+import { stamps } from "@/lib/brand";
 
-const STAMPS = [
-  "weirdFind",
-  "fieldNote",
-  "bonusTrack",
-  "powerUp",
-  "goodStuff",
-  "nowPlaying",
-  "yeehaw",
-  "new",
-  "rewind",
-];
+// Derive from the brand stamp set so the picker can never drift from what
+// actually exists (removing a stamp from brand.ts used to leave a dead option).
+const STAMPS = Object.keys(stamps);
 
 const STATUSES: PostStatus[] = ["idea", "draft", "reviewed", "scheduled", "published", "archived"];
 

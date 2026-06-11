@@ -174,6 +174,9 @@ export async function generateDraft(input: {
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
+    // Don't let a hung upstream call pin the function until the platform kills
+    // it. 120s leaves headroom for link enrichment within the route limit.
+    signal: AbortSignal.timeout(120_000),
     headers: {
       "x-api-key": KEY as string,
       "anthropic-version": "2023-06-01",
