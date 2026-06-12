@@ -47,22 +47,18 @@ export default function PostStamps({ seed }: { seed: string }) {
   const r = makeRng(seed || "yeehaw");
   const pool = [...POOL].sort(() => r() - 0.5);
 
-  // Desktop: 5–6 in the gutters.
+  // Desktop: 5–6 in the gutters. (On mobile, stamps hang off the section
+  // breaks instead — see `.yh-prose hr` in globals.css — so there's no
+  // mobile layer here.)
   const deskCount = 5 + Math.floor(r() * 2);
   const desk = pool.slice(0, deskCount);
 
-  // Mobile: 3 different ones (so the two treatments don't repeat images),
-  // peeking in from the edges.
-  const mob = pool.slice(deskCount, deskCount + 3);
-
   return (
-    <>
-      {/* Desktop — gutters, behind the text column */}
-      <div
-        className="pointer-events-none absolute inset-0 z-0 hidden select-none lg:block"
-        aria-hidden="true"
-      >
-        {desk.map((src, i) => {
+    <div
+      className="pointer-events-none absolute inset-0 z-0 hidden select-none lg:block"
+      aria-hidden="true"
+    >
+      {desk.map((src, i) => {
           const side = i % 2 === 0 ? "left" : "right";
           const top = 6 + ((i + 0.5) / deskCount) * 82 + (r() * 8 - 4); // ~6–88%
           const rot = Math.round(r() * 24 - 12);
@@ -89,41 +85,6 @@ export default function PostStamps({ seed }: { seed: string }) {
             />
           );
         })}
-      </div>
-
-      {/* Mobile — peeking off the edges, on top of the content */}
-      <div
-        className="pointer-events-none absolute inset-0 z-20 select-none lg:hidden"
-        aria-hidden="true"
-      >
-        {mob.map((src, i) => {
-          const side = i % 2 === 0 ? "left" : "right";
-          const top = 14 + (i / Math.max(1, mob.length - 1)) * 66 + (r() * 6 - 3); // ~14–80%
-          const rot = Math.round(r() * 30 - 15);
-          const w = 50 + Math.round(r() * 18); // 50–68px
-          const bleed = Math.round(w * 0.55); // most of it off-screen
-          const style: CSSProperties = {
-            top: `${top}%`,
-            width: `${w}px`,
-            transform: `rotate(${rot}deg)`,
-            ["--yh-rot" as string]: `${rot}deg`,
-          };
-          if (side === "left") style.left = `-${bleed}px`;
-          else style.right = `-${bleed}px`;
-          return (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={`m${i}`}
-              src={src}
-              alt=""
-              loading="lazy"
-              draggable={false}
-              className="absolute drop-shadow-sm"
-              style={style}
-            />
-          );
-        })}
-      </div>
-    </>
+    </div>
   );
 }

@@ -15,6 +15,17 @@ const LOGO = `${SITE_URL}/brand/parts/logos/logo-primary.png`;
 const CASSETTE = `${SITE_URL}/brand/parts/cassette.png`;
 const STAMP_NOW_PLAYING = `${SITE_URL}/brand/parts/stamps/stamp-now-playing.png`;
 
+// Section-break decorations — a sticker/logo hangs on each <hr>, alternating
+// side and cycling art + line color. Never covers text or images.
+const HR_DECOR = [
+  `${SITE_URL}/brand/parts/stamps/stamp-good-stuff.png`,
+  `${SITE_URL}/brand/parts/stamps/stamp-weird-find.png`,
+  `${SITE_URL}/brand/parts/stamps/stamp-now-playing.png`,
+  `${SITE_URL}/brand/parts/logos/logo-mixtape.png`,
+  `${SITE_URL}/brand/parts/stamps/stamp-bonus-track.png`,
+];
+const HR_COLORS = [PINK, CYAN, YELLOW, PURPLE];
+
 // CAN-SPAM requires a real US postal address on broadcast email.
 const POSTAL_ADDRESS =
   process.env.EMAIL_POSTAL_ADDRESS || "YeeHaw · 522 W Riverside Ave, Spokane, WA 99210";
@@ -40,6 +51,21 @@ function emailifyBody(html: string): string {
     (_m, src: string) => `<p><a href="${esc(src)}" style="color:${PURPLE};font-weight:bold;">▶ Watch the video</a></p>`
   );
   out = out.replace(/<img /gi, '<img style="max-width:100%;height:auto;border-radius:10px;border:2px solid #17141F;" ');
+
+  // Section breaks: a sticker/logo hangs on each <hr>, alternating side.
+  let hr = 0;
+  out = out.replace(/<hr\b[^>]*>/gi, () => {
+    const i = hr++;
+    const decor = HR_DECOR[i % HR_DECOR.length];
+    const isLogo = decor.includes("/logos/");
+    const w = isLogo ? 96 : 58;
+    const color = HR_COLORS[i % HR_COLORS.length];
+    const left = i % 2 === 0;
+    const stampCell = `<td width="${w + 8}" valign="middle" align="${left ? "left" : "right"}" style="width:${w + 8}px;"><img src="${decor}" alt="" width="${w}" style="display:block;width:${w}px;height:auto;border:none;border-radius:0;" /></td>`;
+    const lineCell = `<td valign="middle"><div style="height:3px;line-height:3px;font-size:0;background:${color};">&nbsp;</div></td>`;
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr>${left ? stampCell + lineCell : lineCell + stampCell}</tr></table>`;
+  });
+
   return out;
 }
 
