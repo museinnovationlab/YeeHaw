@@ -12,6 +12,7 @@ import { stamps, type StampKey } from "@/lib/brand";
 import { formatDateLong } from "@/lib/format";
 import { getPostBySlug, getPublishedPosts } from "@/lib/repo/posts";
 import { cleanHtml } from "@/lib/sanitize";
+import { decorateHr } from "@/lib/decor";
 import { SITE_URL, SITE_NAME, SITE_AUTHOR } from "@/lib/site";
 
 export const revalidate = 300;
@@ -96,7 +97,11 @@ export default async function PostPage({
 
         <div className="yh-prose mt-8 text-lg leading-relaxed text-ink/90">
           {post.bodyHtml ? (
-            <div dangerouslySetInnerHTML={{ __html: cleanHtml(post.bodyHtml) }} />
+            <div
+              dangerouslySetInnerHTML={{
+                __html: decorateHr(cleanHtml(post.bodyHtml), post.slug),
+              }}
+            />
           ) : (
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {post.bodyMarkdown}

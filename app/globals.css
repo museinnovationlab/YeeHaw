@@ -185,51 +185,27 @@ body {
   border-top: 3px solid rgba(23, 20, 31, 0.2);
   margin: 2.75em auto;
 }
-/* Mobile: hang a sticker on each section break — alternating side, cycling art
-   (desktop gets the gutter stamps instead). Never covers text/images. */
+/* Mobile: hang a decoration on each section break. The image/side/size/rotation
+   come from inline CSS custom properties set per-<hr> by lib/decor.ts (seeded
+   60/40 mini-objects vs stamps). Desktop keeps the gutter stamps instead.
+   Never covers text/images. */
 @media (max-width: 1023px) {
   .yh-prose hr {
     margin: 3.2em auto;
     overflow: visible;
   }
-  .yh-prose hr::after {
+  .yh-prose hr[style*="--yh-decor"]::after {
     content: "";
     position: absolute;
     top: 50%;
-    width: 54px;
-    height: 54px;
+    width: var(--yh-w, 56px);
+    height: 56px;
+    background-image: var(--yh-decor);
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
-    transform: translateY(-50%) rotate(-6deg);
-  }
-  /* little retro objects (no labels) + the mixtape logo — cycle of 6 */
-  .yh-prose hr:nth-of-type(6n + 1)::after {
-    left: -6px;
-    background-image: url("/brand/parts/arcade.png");
-  }
-  .yh-prose hr:nth-of-type(6n + 2)::after {
-    right: -6px;
-    transform: translateY(-50%) rotate(6deg);
-    background-image: url("/brand/parts/cassette.png");
-  }
-  .yh-prose hr:nth-of-type(6n + 3)::after {
-    left: -6px;
-    background-image: url("/brand/parts/gameboy.png");
-  }
-  .yh-prose hr:nth-of-type(6n + 4)::after {
-    right: -8px;
-    width: 92px;
-    transform: translateY(-50%) rotate(4deg);
-    background-image: url("/brand/parts/logos/logo-mixtape.png");
-  }
-  .yh-prose hr:nth-of-type(6n + 5)::after {
-    left: -6px;
-    background-image: url("/brand/parts/boombox.png");
-  }
-  .yh-prose hr:nth-of-type(6n + 6)::after {
-    right: -6px;
-    transform: translateY(-50%) rotate(6deg);
-    background-image: url("/brand/parts/crt-tv.png");
+    left: var(--yh-left, auto);
+    right: var(--yh-right, auto);
+    transform: translateY(-50%) rotate(var(--yh-rot, -6deg));
   }
 }

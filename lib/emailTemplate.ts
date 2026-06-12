@@ -1,6 +1,7 @@
 import "server-only";
 import type { Post } from "@/lib/types";
 import { SITE_URL } from "@/lib/site";
+import { decorBag } from "@/lib/decor";
 
 // Brand palette (inlined — email clients don't load our CSS tokens).
 const CREAM = "#FFF3D6";
@@ -15,18 +16,8 @@ const LOGO = `${SITE_URL}/brand/parts/logos/logo-primary.png`;
 const CASSETTE = `${SITE_URL}/brand/parts/cassette.png`;
 const ARCADE = `${SITE_URL}/brand/parts/arcade.png`;
 
-// Section-break decorations — a sticker/logo hangs on each <hr>, alternating
-// side and cycling art + line color. Never covers text or images.
-const HR_DECOR = [
-  `${SITE_URL}/brand/parts/arcade.png`,
-  `${SITE_URL}/brand/parts/cassette.png`,
-  `${SITE_URL}/brand/parts/gameboy.png`,
-  `${SITE_URL}/brand/parts/logos/logo-mixtape.png`,
-  `${SITE_URL}/brand/parts/boombox.png`,
-  `${SITE_URL}/brand/parts/crt-tv.png`,
-  `${SITE_URL}/brand/parts/controller.png`,
-  `${SITE_URL}/brand/parts/vhs-tape.png`,
-];
+// Section-break line colors (the decoration art itself comes from lib/decor.ts,
+// a seeded 60/40 mix of mini-objects vs stamps).
 const HR_COLORS = [PINK, CYAN, YELLOW, PURPLE];
 
 // CAN-SPAM requires a real US postal address on broadcast email.
@@ -39,7 +30,7 @@ function esc(s: string): string {
 
 // Make sanitized web HTML email-safe: video iframes -> "watch" links, and
 // images get a max-width so they don't blow out the column.
-function emailifyBody(html: string): string {
+function emailifyBody(html: string, seed: string): string {
   let out = html.replace(
     /<div[^>]*data-youtube-video[^>]*>\s*<iframe[^>]*\ssrc="([^"]+)"[^>]*>\s*<\/iframe>\s*<\/div>/gi,
     (_m, src: string) => {
@@ -55,16 +46,19 @@ function emailifyBody(html: string): string {
   );
   out = out.replace(/<img /gi, '<img style="max-width:100%;height:auto;border-radius:10px;border:2px solid #17141F;" ');
 
-  // Section breaks: a sticker/logo hangs on each <hr>, alternating side.
-  let hr = 0;
+  // Section breaks: a decoration hangs on each <hr>, alternating side; art is
+  // a seeded 60/40 mix of mini-objects vs stamps (shared with the web).
+  const count = (out.match(/<hr\b[^>]*>/gi) || []).length;
+  const bag = decorBag(seed, count);
+  let i = 0;
   out = out.replace(/<hr\b[^>]*>/gi, () => {
-    const i = hr++;
-    const decor = HR_DECOR[i % HR_DECOR.length];
-    const isLogo = decor.includes("/logos/");
-    const w = isLogo ? 96 : 58;
+    const d = bag[i];
+    const w = d.isLogo ? 96 : 58;
     const color = HR_COLORS[i % HR_COLORS.length];
     const left = i % 2 === 0;
-    const stampCell = `<td width="${w + 8}" valign="middle" align="${left ? "left" : "right"}" style="width:${w + 8}px;"><img src="${decor}" alt="" width="${w}" style="display:block;width:${w}px;height:auto;border:none;border-radius:0;" /></td>`;
+    i++;
+    const url = `${SITE_URL}${d.path}`;
+    const stampCell = `<td width="${w + 8}" valign="middle" align="${left ? "left" : "right"}" style="width:${w + 8}px;"><img src="${url}" alt="" width="${w}" style="display:block;width:${w}px;height:auto;border:none;border-radius:0;" /></td>`;
     const lineCell = `<td valign="middle"><div style="height:3px;line-height:3px;font-size:0;background:${color};">&nbsp;</div></td>`;
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr>${left ? stampCell + lineCell : lineCell + stampCell}</tr></table>`;
   });
@@ -79,7 +73,7 @@ export function renderPostEmail(
   const subject = post.emailSubject || post.title || "YeeHaw";
   const preheader = post.emailPreviewText || post.dek || "";
   const unsub = opts?.unsubscribeUrl || `${SITE_URL}/unsubscribe`;
-  const body = emailifyBody(post.bodyHtml || "");
+  const body = emailifyBody(post.bodyHtml || "", post.slug || post.title || "yeehaw");
 
   // funky striped divider that echoes the logo's layered shadow
   const stripe = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
