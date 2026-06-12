@@ -105,7 +105,7 @@ export function renderPostEmail(
 
         <!-- forward-to-subscribe CTA -->
         <tr><td style="padding:0 28px 28px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CYAN}1f;border:2px solid ${INK};border-radius:16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E2F7FB;border:2px solid ${INK};border-radius:16px;">
             <tr><td align="center" style="padding:24px 20px;">
               <img src="${CASSETTE}" alt="" width="72" style="display:block;width:72px;height:auto;margin:0 auto 10px;" />
               <div style="font-weight:800;font-size:18px;color:${INK};margin-bottom:4px;">Was this forwarded to you?</div>
