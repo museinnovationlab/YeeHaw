@@ -6,6 +6,7 @@ import { savePost, deletePost, getPostById, type PostInput } from "@/lib/repo/po
 import { getWeekendPicks, renderWhatToWatchHtml, isTmdbConfigured } from "@/lib/tmdb";
 import { sendEmail, isEmailConfigured } from "@/lib/email";
 import { renderPostEmail } from "@/lib/emailTemplate";
+import { unsubscribeUrl, listUnsubscribeHeaders } from "@/lib/unsubscribe";
 
 export async function savePostAction(input: PostInput): Promise<{ id: string; slug: string }> {
   // Server actions are callable endpoints — always re-check auth here.
@@ -45,11 +46,17 @@ export async function sendTestEmailAction(
   const unique = [...new Set(recipients)].slice(0, 5);
   if (!unique.length) throw new Error("Enter at least one valid email address.");
 
-  const { subject, html } = renderPostEmail(post);
   let sent = 0;
   const failed: { to: string; error: string }[] = [];
   for (const to of unique) {
-    const r = await sendEmail({ to, subject: `[TEST] ${subject}`, html });
+    // Render per-recipient so the unsubscribe link/header is personalized.
+    const { subject, html } = renderPostEmail(post, { unsubscribeUrl: unsubscribeUrl(to) });
+    const r = await sendEmail({
+      to,
+      subject: `[TEST] ${subject}`,
+      html,
+      headers: listUnsubscribeHeaders(to),
+    });
     if (r.error) failed.push({ to, error: r.error });
     else sent += 1;
   }
