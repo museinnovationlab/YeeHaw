@@ -203,27 +203,33 @@ body {
     background-position: center;
     transform: translateY(-50%) rotate(-6deg);
   }
-  .yh-prose hr:nth-of-type(5n + 1)::after {
-    left: -4px;
-    background-image: url("/brand/parts/stamps/stamp-good-stuff.png");
+  /* little retro objects (no labels) + the mixtape logo — cycle of 6 */
+  .yh-prose hr:nth-of-type(6n + 1)::after {
+    left: -6px;
+    background-image: url("/brand/parts/arcade.png");
   }
-  .yh-prose hr:nth-of-type(5n + 2)::after {
-    right: -4px;
+  .yh-prose hr:nth-of-type(6n + 2)::after {
+    right: -6px;
     transform: translateY(-50%) rotate(6deg);
-    background-image: url("/brand/parts/stamps/stamp-weird-find.png");
+    background-image: url("/brand/parts/cassette.png");
   }
-  .yh-prose hr:nth-of-type(5n + 3)::after {
-    left: -4px;
-    background-image: url("/brand/parts/stamps/stamp-now-playing.png");
+  .yh-prose hr:nth-of-type(6n + 3)::after {
+    left: -6px;
+    background-image: url("/brand/parts/gameboy.png");
   }
-  .yh-prose hr:nth-of-type(5n + 4)::after {
+  .yh-prose hr:nth-of-type(6n + 4)::after {
     right: -8px;
     width: 92px;
     transform: translateY(-50%) rotate(4deg);
     background-image: url("/brand/parts/logos/logo-mixtape.png");
   }
-  .yh-prose hr:nth-of-type(5n + 5)::after {
-    left: -4px;
-    background-image: url("/brand/parts/stamps/stamp-bonus-track.png");
+  .yh-prose hr:nth-of-type(6n + 5)::after {
+    left: -6px;
+    background-image: url("/brand/parts/boombox.png");
+  }
+  .yh-prose hr:nth-of-type(6n + 6)::after {
+    right: -6px;
+    transform: translateY(-50%) rotate(6deg);
+    background-image: url("/brand/parts/crt-tv.png");
   }
 }

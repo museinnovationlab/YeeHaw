@@ -13,16 +13,19 @@ const PURPLE = "#7B4DFF";
 // Brand art, served absolutely from the live site (email needs full URLs).
 const LOGO = `${SITE_URL}/brand/parts/logos/logo-primary.png`;
 const CASSETTE = `${SITE_URL}/brand/parts/cassette.png`;
-const STAMP_NOW_PLAYING = `${SITE_URL}/brand/parts/stamps/stamp-now-playing.png`;
+const ARCADE = `${SITE_URL}/brand/parts/arcade.png`;
 
 // Section-break decorations — a sticker/logo hangs on each <hr>, alternating
 // side and cycling art + line color. Never covers text or images.
 const HR_DECOR = [
-  `${SITE_URL}/brand/parts/stamps/stamp-good-stuff.png`,
-  `${SITE_URL}/brand/parts/stamps/stamp-weird-find.png`,
-  `${SITE_URL}/brand/parts/stamps/stamp-now-playing.png`,
+  `${SITE_URL}/brand/parts/arcade.png`,
+  `${SITE_URL}/brand/parts/cassette.png`,
+  `${SITE_URL}/brand/parts/gameboy.png`,
   `${SITE_URL}/brand/parts/logos/logo-mixtape.png`,
-  `${SITE_URL}/brand/parts/stamps/stamp-bonus-track.png`,
+  `${SITE_URL}/brand/parts/boombox.png`,
+  `${SITE_URL}/brand/parts/crt-tv.png`,
+  `${SITE_URL}/brand/parts/controller.png`,
+  `${SITE_URL}/brand/parts/vhs-tape.png`,
 ];
 const HR_COLORS = [PINK, CYAN, YELLOW, PURPLE];
 
@@ -123,7 +126,7 @@ export function renderPostEmail(
 
         <!-- content -->
         <tr><td style="padding:28px;background:${CREAM};">
-          <img src="${STAMP_NOW_PLAYING}" alt="" width="120" style="display:block;width:120px;height:auto;margin:0 0 12px;" />
+          <img src="${ARCADE}" alt="" width="74" style="display:block;width:74px;height:auto;margin:0 0 12px;" />
           <h1 style="font-size:28px;line-height:1.15;margin:0 0 8px;color:${INK};font-weight:800;">${esc(post.title || "")}</h1>
           ${post.dek ? `<p style="font-size:17px;color:${INK};opacity:0.75;margin:0 0 22px;">${esc(post.dek)}</p>` : ""}
           <div class="yh-body">${body}</div>
