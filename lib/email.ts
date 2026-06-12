@@ -18,6 +18,7 @@ export async function sendEmail(opts: {
   html: string;
   replyTo?: string;
   headers?: Record<string, string>;
+  tags?: { name: string; value: string }[];
 }): Promise<SendResult> {
   if (!KEY) return { error: "email_not_configured" };
   try {
@@ -34,6 +35,7 @@ export async function sendEmail(opts: {
         html: opts.html,
         reply_to: opts.replyTo ?? REPLY_TO,
         headers: opts.headers,
+        tags: opts.tags,
       }),
       signal: AbortSignal.timeout(30_000),
     });

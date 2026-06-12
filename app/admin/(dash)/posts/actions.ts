@@ -56,6 +56,7 @@ export async function sendTestEmailAction(
       subject: `[TEST] ${subject}`,
       html,
       headers: listUnsubscribeHeaders(to),
+      tags: [{ name: "post", value: post.slug }],
     });
     if (r.error) failed.push({ to, error: r.error });
     else sent += 1;

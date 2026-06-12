@@ -32,6 +32,12 @@ export default async function AdminLayout({
               Subscribers
             </a>
             <a
+              href="/admin/analytics"
+              className="font-mono text-xs uppercase tracking-wide text-cream/70 hover:text-yellow"
+            >
+              Analytics
+            </a>
+            <a
               href="/admin/stash"
               className="font-mono text-xs uppercase tracking-wide text-cream/70 hover:text-yellow"
             >
