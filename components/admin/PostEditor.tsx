@@ -4,7 +4,11 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import RichTextEditor from "./RichTextEditor";
 import DeletePostButton from "./DeletePostButton";
-import { savePostAction, generateWhatToWatchAction } from "@/app/admin/(dash)/posts/actions";
+import {
+  savePostAction,
+  generateWhatToWatchAction,
+  sendTestEmailAction,
+} from "@/app/admin/(dash)/posts/actions";
 import {
   getUnusedStashAction,
   markStashUsedAction,
@@ -79,6 +83,9 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [aiMode, setAiMode] = useState<"replace" | "append">("replace");
   const [editorKey, setEditorKey] = useState(0); // bump to reload editor content
   const [w2wBusy, setW2wBusy] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [testBusy, setTestBusy] = useState(false);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
 
   // stash picker
   const [stashItems, setStashItems] = useState<StashItem[]>([]);
@@ -221,6 +228,24 @@ export default function PostEditor({ post }: { post: Post | null }) {
         setError(e instanceof Error ? e.message : "Save failed");
       }
     });
+  }
+
+  async function sendTest() {
+    if (!savedId || testBusy) return;
+    setTestBusy(true);
+    setTestMsg(null);
+    try {
+      const r = await sendTestEmailAction(savedId, testTo);
+      setTestMsg(
+        r.failed.length
+          ? `Sent ${r.sent}. Failed: ${r.failed.map((f) => `${f.to} (${f.error})`).join(", ")}`
+          : `✓ Test sent to ${r.sent} ${r.sent === 1 ? "address" : "addresses"}.`
+      );
+    } catch (e) {
+      setTestMsg(e instanceof Error ? e.message : "Test send failed.");
+    } finally {
+      setTestBusy(false);
+    }
   }
 
   async function insertWhatToWatch() {
@@ -554,6 +579,32 @@ export default function PostEditor({ post }: { post: Post | null }) {
           <a href={`/posts/${slug}`} target="_blank" className="font-mono text-center text-xs uppercase tracking-wide text-purple hover:text-pink">
             View live ↗
           </a>
+        )}
+        {savedId && (
+          <div className="rounded-xl border-2 border-cyan bg-cyan/5 p-3">
+            <p className="font-mono text-[11px] uppercase tracking-wide text-ink/60">
+              Send test email
+            </p>
+            <p className="font-mono mt-1 text-[10px] text-ink/40">
+              Goes only to these addresses (sends the saved version) — never the list.
+            </p>
+            <input
+              type="text"
+              value={testTo}
+              onChange={(e) => setTestTo(e.target.value)}
+              placeholder="you@email.com, friend@email.com"
+              className={`${inputClass} mt-2 font-mono text-sm`}
+            />
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={testBusy || !testTo.trim()}
+              className="font-heading yh-shadow-sm mt-2 w-full rounded-full border-2 border-ink bg-cyan px-4 py-2 text-sm text-ink transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+            >
+              {testBusy ? "Sending…" : "Send test ✉"}
+            </button>
+            {testMsg && <p className="font-mono mt-2 text-[11px] text-ink/70">{testMsg}</p>}
+          </div>
         )}
         {savedId && (
           <div className="mt-2 border-t-2 border-ink/10 pt-3">
