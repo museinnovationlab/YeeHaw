@@ -24,36 +24,33 @@ function verifySvix(secret: string, id: string, ts: string, sig: string, body: s
 }
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) return NextResponse.json({ error: "not_configured" }, { status: 503 });
-
-  const body = await req.text();
-  // Svix headers come as either svix-* or the standard webhook-* names.
-  const h = (a: string, b: string) => req.headers.get(a) || req.headers.get(b) || "";
-  const id = h("svix-id", "webhook-id");
-  const ts = h("svix-timestamp", "webhook-timestamp");
-  const signature = h("svix-signature", "webhook-signature");
-  const ok = verifySvix(secret, id, ts, signature, body);
-  if (!ok) return NextResponse.json({ error: "bad_signature" }, { status: 401 });
-
-  let evt: { type?: string; data?: Record<string, unknown> };
+  // Wrap everything so ANY failure is reported in the response body (visible in
+  // Resend's delivery log) instead of an opaque 500.
   try {
-    evt = JSON.parse(body);
-  } catch {
-    return NextResponse.json({ error: "bad_json" }, { status: 400 });
-  }
+    const secret = process.env.RESEND_WEBHOOK_SECRET;
+    if (!secret) return NextResponse.json({ error: "not_configured" }, { status: 503 });
 
-  const data = (evt.data ?? {}) as {
-    email_id?: string;
-    to?: string | string[];
-    tags?: { name: string; value: string }[];
-    click?: { link?: string };
-  };
-  const type = (evt.type ?? "").replace(/^email\./, "");
-  const recipient = Array.isArray(data.to) ? data.to[0] : data.to ?? "";
-  const post = (data.tags ?? []).find((t) => t.name === "post")?.value;
+    const body = await req.text();
+    // Svix headers come as either svix-* or the standard webhook-* names.
+    const h = (a: string, b: string) => req.headers.get(a) || req.headers.get(b) || "";
+    const id = h("svix-id", "webhook-id");
+    const ts = h("svix-timestamp", "webhook-timestamp");
+    const signature = h("svix-signature", "webhook-signature");
+    if (!verifySvix(secret, id, ts, signature, body)) {
+      return NextResponse.json({ error: "bad_signature" }, { status: 401 });
+    }
 
-  try {
+    const evt = JSON.parse(body) as { type?: string; data?: Record<string, unknown> };
+    const data = (evt.data ?? {}) as {
+      email_id?: string;
+      to?: string | string[];
+      tags?: { name: string; value: string }[];
+      click?: { link?: string };
+    };
+    const type = (evt.type ?? "").replace(/^email\./, "");
+    const recipient = Array.isArray(data.to) ? data.to[0] : data.to ?? "";
+    const post = (data.tags ?? []).find((t) => t.name === "post")?.value;
+
     await recordEmailEvent({
       id: id || `${data.email_id}-${type}-${Date.now()}`,
       type,
@@ -62,14 +59,13 @@ export async function POST(req: NextRequest) {
       post,
       link: data.click?.link,
     });
+
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    // Surface the real reason in the response so it shows in Resend's log.
-    console.error("resend webhook store failed:", err);
+    console.error("resend webhook error:", err);
     return NextResponse.json(
-      { error: "store_failed", detail: err instanceof Error ? err.message : String(err) },
+      { error: "webhook_error", detail: err instanceof Error ? `${err.name}: ${err.message}` : String(err) },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ ok: true });
 }
