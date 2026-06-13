@@ -42,7 +42,8 @@ export default function SubscribeForm() {
   if (done) {
     return (
       <p className="font-mono text-ink/90">
-        🤠 You&apos;re on the list. Keep an eye on your inbox for the next mixtape.
+        🤠 You&apos;re on the list! Check your inbox — we just sent a welcome note.
+        (Peek in spam/Promotions if it&apos;s not there in a minute.)
       </p>
     );
   }
