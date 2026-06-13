@@ -6,6 +6,7 @@ import { recordEmailEvent } from "@/lib/repo/emailEvents";
 // event (delivered/opened/clicked/bounced/complained) keyed by the unique svix
 // message id (idempotent on retries).
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs"; // node:crypto + firebase-admin need Node, not Edge
 
 function verifySvix(secret: string, id: string, ts: string, sig: string, body: string): boolean {
   if (!id || !ts || !sig) return false;
@@ -52,14 +53,23 @@ export async function POST(req: NextRequest) {
   const recipient = Array.isArray(data.to) ? data.to[0] : data.to ?? "";
   const post = (data.tags ?? []).find((t) => t.name === "post")?.value;
 
-  await recordEmailEvent({
-    id: id || `${data.email_id}-${type}-${Date.now()}`,
-    type,
-    emailId: data.email_id ?? "",
-    recipient,
-    post,
-    link: data.click?.link,
-  });
+  try {
+    await recordEmailEvent({
+      id: id || `${data.email_id}-${type}-${Date.now()}`,
+      type,
+      emailId: data.email_id ?? "",
+      recipient,
+      post,
+      link: data.click?.link,
+    });
+  } catch (err) {
+    // Surface the real reason in the response so it shows in Resend's log.
+    console.error("resend webhook store failed:", err);
+    return NextResponse.json(
+      { error: "store_failed", detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }
