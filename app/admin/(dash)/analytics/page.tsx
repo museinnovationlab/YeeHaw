@@ -1,63 +1,93 @@
-import { getEmailStatsByPost } from "@/lib/repo/emailEvents";
+import Link from "next/link";
+import { getEmailReport } from "@/lib/repo/emailEvents";
+import { getAllPosts } from "@/lib/repo/posts";
 
 export const dynamic = "force-dynamic";
 
-function pct(n: number, d: number): string {
-  if (!d) return "—";
-  return `${Math.round((n / d) * 100)}%`;
+function fmtDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-xl border-2 border-ink bg-cream px-4 py-3 text-center">
+      <div className="font-heading text-2xl text-ink">{value}</div>
+      <div className="font-mono text-[10px] uppercase tracking-wide text-ink/50">{label}</div>
+    </div>
+  );
 }
 
 export default async function AnalyticsPage() {
-  const stats = await getEmailStatsByPost();
+  const [report, posts] = await Promise.all([getEmailReport(), getAllPosts()]);
+  const titleBySlug = new Map(posts.map((p) => [p.slug, p.title]));
+  const o = report.overall;
 
   return (
     <div>
       <h1 className="font-heading mb-1 text-2xl text-ink">Email analytics</h1>
       <p className="font-mono mb-6 text-sm text-ink/50">
-        Per issue, from Resend webhooks. Click rate is the trustworthy signal — open rate is
-        inflated by Apple Mail Privacy.
+        Across all sends. Click rate is the trustworthy signal — open rate is inflated by Apple Mail
+        Privacy.
       </p>
 
-      {stats.length === 0 ? (
+      {report.issues.length === 0 ? (
         <p className="font-mono rounded-xl border-2 border-dashed border-ink/20 p-6 text-center text-sm text-ink/40">
-          No email events yet. Once the Resend webhook is connected and you send an issue, opens and
-          clicks show up here.
+          No email events yet. Send an issue and opens/clicks will show up here.
         </p>
       ) : (
-        <div className="flex flex-col gap-5">
-          {stats.map((s) => (
-            <div key={s.post} className="rounded-2xl border-2 border-ink bg-cream p-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="font-heading text-lg text-ink">{s.post}</h2>
-                <div className="font-mono flex gap-4 text-xs text-ink/60">
-                  <span>{s.delivered} delivered</span>
-                  <span>
-                    {s.opens} opens <span className="text-ink/40">({pct(s.opens, s.delivered)})</span>
-                  </span>
-                  <span className="text-purple">
-                    {s.clicks} clicked <span className="text-ink/40">({pct(s.clicks, s.delivered)})</span>
-                  </span>
-                </div>
-              </div>
+        <>
+          {/* all-time roll-up */}
+          <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <Stat label="issues" value={o.issues} />
+            <Stat label="recipients" value={o.recipients} />
+            <Stat label="open rate" value={`${o.openRate}%`} />
+            <Stat label="click rate" value={`${o.clickRate}%`} />
+            <Stat label="clicks / issue" value={o.avgClicksPerIssue} />
+          </div>
 
-              {s.topLinks.length > 0 && (
-                <div className="mt-3 border-t border-ink/10 pt-3">
-                  <p className="font-mono mb-2 text-[10px] uppercase tracking-wide text-ink/50">
-                    Top-clicked links
-                  </p>
-                  <ul className="flex flex-col gap-1">
-                    {s.topLinks.map((l) => (
-                      <li key={l.link} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="truncate text-ink/80">{l.link}</span>
-                        <span className="font-mono shrink-0 text-purple">{l.count}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+          {/* one row per send */}
+          <h2 className="font-heading mb-3 text-lg text-ink">Sends</h2>
+          <div className="overflow-hidden rounded-2xl border-2 border-ink">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-ink text-cream">
+                <tr>
+                  <th className="px-4 py-2 font-mono text-xs uppercase">Issue</th>
+                  <th className="px-4 py-2 font-mono text-xs uppercase">Sent</th>
+                  <th className="px-4 py-2 text-right font-mono text-xs uppercase">Sent to</th>
+                  <th className="px-4 py-2 text-right font-mono text-xs uppercase">Opens</th>
+                  <th className="px-4 py-2 text-right font-mono text-xs uppercase">Clicks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.issues.map((s) => (
+                  <tr key={s.post} className="border-t border-ink/10 bg-cream hover:bg-yellow/20">
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/admin/analytics/${encodeURIComponent(s.post)}`}
+                        className="font-medium text-ink hover:text-purple"
+                      >
+                        {titleBySlug.get(s.post) || s.post}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-ink/50">{fmtDate(s.sentAt)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-ink/70">{s.delivered}</td>
+                    <td className="px-4 py-3 text-right font-mono text-ink/70">
+                      {s.opened}{" "}
+                      <span className="text-ink/40">({s.delivered ? Math.round((s.opened / s.delivered) * 100) : 0}%)</span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-purple">
+                      {s.clicked}{" "}
+                      <span className="text-ink/40">({s.delivered ? Math.round((s.clicked / s.delivered) * 100) : 0}%)</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
