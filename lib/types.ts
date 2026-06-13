@@ -105,4 +105,6 @@ export interface Subscriber {
   createdAt: string;
   updatedAt: string;
   unsubscribedAt?: string;
+  /** set when a bounce/complaint webhook suppresses the address */
+  suppressedAt?: string;
 }

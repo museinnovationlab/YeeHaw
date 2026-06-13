@@ -33,6 +33,7 @@ function toSub(id: string, d: Record<string, unknown>): Subscriber {
     createdAt: iso(d.createdAt) ?? "",
     updatedAt: iso(d.updatedAt) ?? "",
     unsubscribedAt: iso(d.unsubscribedAt),
+    suppressedAt: iso(d.suppressedAt),
   };
 }
 
@@ -145,6 +146,39 @@ export async function setSubscriberStatus(
       },
       { merge: true }
     );
+}
+
+/**
+ * Flag an address as bounced/complained from a webhook event. Only updates an
+ * existing subscriber doc — we never want a bounce for some random test
+ * address to materialize a phantom subscriber. Returns true if a doc was hit.
+ */
+export async function markSuppressed(
+  rawEmail: string,
+  status: "bounced" | "complained"
+): Promise<boolean> {
+  if (!isFirebaseAdminConfigured) return false;
+  const ref = adminDb().collection(COL).doc(emailId(rawEmail));
+  const snap = await ref.get();
+  if (!snap.exists) return false;
+  await ref.set(
+    {
+      status,
+      suppressedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  return true;
+}
+
+/**
+ * Emails that should actually receive a broadcast: subscribed only, never
+ * unsubscribed/bounced/complained.
+ */
+export async function getSubscribedRecipients(): Promise<string[]> {
+  const all = await getAllSubscribers();
+  return all.filter((s) => s.status === "subscribed").map((s) => s.email);
 }
 
 export async function deleteSubscriber(email: string): Promise<void> {

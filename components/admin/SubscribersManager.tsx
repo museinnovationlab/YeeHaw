@@ -60,7 +60,7 @@ export default function SubscribersManager({
 
   function exportCsv() {
     const rows = [
-      ["email", "name", "status", "source", "createdAt", "unsubscribedAt"],
+      ["email", "name", "status", "source", "createdAt", "unsubscribedAt", "suppressedAt"],
       ...subscribers.map((s) => [
         s.email,
         s.name ?? "",
@@ -68,6 +68,7 @@ export default function SubscribersManager({
         s.source,
         s.createdAt,
         s.unsubscribedAt ?? "",
+        s.suppressedAt ?? "",
       ]),
     ];
     const csv = rows.map((r) => r.map((c) => csvEscape(String(c))).join(",")).join("\n");
@@ -159,7 +160,7 @@ export default function SubscribersManager({
             onClick={() => setShowUnsub((v) => !v)}
             className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-pink"
           >
-            {showUnsub ? "▾" : "▸"} Unsubscribed ({unsub.length})
+            {showUnsub ? "▾" : "▸"} Inactive ({unsub.length})
           </button>
           {showUnsub &&
             (unsub.length === 0 ? (
@@ -172,10 +173,19 @@ export default function SubscribersManager({
                     className="flex items-center gap-3 rounded-xl border-2 border-ink/30 bg-cream p-3"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-ink/60 line-through">{s.email}</p>
-                      {s.unsubscribedAt && (
+                      <p className="flex items-center gap-2">
+                        <span className="truncate text-sm text-ink/60 line-through">{s.email}</span>
+                        {s.status !== "unsubscribed" && (
+                          <span className="font-mono shrink-0 rounded-full border border-ink/30 px-1.5 py-0.5 text-[9px] uppercase text-ink/50">
+                            {s.status}
+                          </span>
+                        )}
+                      </p>
+                      {(s.suppressedAt || s.unsubscribedAt) && (
                         <p className="font-mono truncate text-[11px] text-ink/40">
-                          unsubscribed {fmtDateTime(s.unsubscribedAt)}
+                          {s.suppressedAt
+                            ? `${s.status} ${fmtDateTime(s.suppressedAt)}`
+                            : `unsubscribed ${fmtDateTime(s.unsubscribedAt!)}`}
                         </p>
                       )}
                     </div>

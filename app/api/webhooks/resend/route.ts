@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { recordEmailEvent } from "@/lib/repo/emailEvents";
+import { markSuppressed } from "@/lib/repo/subscribers";
 
 // Resend webhooks are signed with Svix. We verify the signature, then store the
 // event (delivered/opened/clicked/bounced/complained) keyed by the unique svix
@@ -66,6 +67,12 @@ export async function POST(req: NextRequest) {
       post,
       link: data.click?.link,
     });
+
+    // Hard bounces and spam complaints suppress the address so future sends skip
+    // it. (Only flags an existing subscriber — see markSuppressed.)
+    if ((type === "bounced" || type === "complained") && recipient) {
+      await markSuppressed(recipient, type);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

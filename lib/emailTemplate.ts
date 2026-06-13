@@ -155,3 +155,73 @@ export function renderPostEmail(
 
   return { subject, html };
 }
+
+// Reusable striped divider (matches renderPostEmail's).
+function stripeRow(): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td height="8" style="height:8px;background:${PINK};font-size:0;line-height:0;">&nbsp;</td>
+    <td height="8" style="height:8px;background:${YELLOW};font-size:0;line-height:0;">&nbsp;</td>
+    <td height="8" style="height:8px;background:${CYAN};font-size:0;line-height:0;">&nbsp;</td>
+    <td height="8" style="height:8px;background:${PURPLE};font-size:0;line-height:0;">&nbsp;</td>
+  </tr></table>`;
+}
+
+/** Branded "you're in" email sent the moment someone signs up on the site. */
+export function renderWelcomeEmail(
+  opts?: { unsubscribeUrl?: string }
+): { subject: string; html: string } {
+  const subject = "You're in — welcome to YeeHaw 🎉";
+  const preheader = "A Saturday morning mixtape of the good stuff is headed your way.";
+  const unsub = opts?.unsubscribeUrl || `${SITE_URL}/unsubscribe`;
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body style="margin:0;padding:0;background:${CREAM};">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${CREAM};border:3px solid ${INK};border-radius:18px;overflow:hidden;font-family:-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;color:${INK};">
+
+        <!-- header: logo -->
+        <tr><td align="center" style="padding:28px 28px 18px;background:${CREAM};">
+          <img src="${LOGO}" alt="YeeHaw" width="280" style="display:block;width:280px;max-width:80%;height:auto;" />
+        </td></tr>
+
+        <!-- striped divider -->
+        <tr><td>${stripeRow()}</td></tr>
+
+        <!-- content -->
+        <tr><td align="center" style="padding:32px 28px 8px;background:${CREAM};">
+          <img src="${CASSETTE}" alt="" width="96" style="display:block;width:96px;height:auto;margin:0 auto 16px;" />
+          <h1 style="font-size:30px;line-height:1.15;margin:0 0 10px;color:${INK};font-weight:800;">You're on the list!</h1>
+          <p style="font-size:17px;line-height:1.6;color:${INK};opacity:0.8;margin:0 0 8px;">
+            Welcome to <strong>YeeHaw</strong> — a hand-picked mixtape of movies, music, books, and weird little
+            corners of the internet worth your time. No noise, no filler, just the good stuff.
+          </p>
+          <p style="font-size:17px;line-height:1.6;color:${INK};opacity:0.8;margin:0 0 24px;">
+            Keep an eye on your inbox — the next issue lands soon.
+          </p>
+          <a href="${SITE_URL}" style="display:inline-block;background:${PINK};color:${CREAM};font-weight:800;text-decoration:none;padding:13px 30px;border:2px solid ${INK};border-radius:999px;font-size:16px;">Browse the archive ▶</a>
+        </td></tr>
+
+        <tr><td style="padding:24px 28px 4px;"></td></tr>
+
+        <!-- footer -->
+        <tr><td style="padding:22px 28px;background:${INK};color:${CREAM};font-family:monospace;font-size:12px;line-height:1.6;">
+          <p style="margin:0 0 6px;color:${CREAM};opacity:0.85;">You're getting this because you just subscribed to YeeHaw at <a href="${SITE_URL}" style="color:${YELLOW};">yeehaw.io</a>.</p>
+          <p style="margin:0 0 6px;"><a href="${esc(unsub)}" style="color:${YELLOW};">Unsubscribe</a></p>
+          <p style="margin:0;color:${CREAM};opacity:0.6;">${esc(POSTAL_ADDRESS)}</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  return { subject, html };
+}
