@@ -44,12 +44,19 @@ export async function POST(req: NextRequest) {
     const data = (evt.data ?? {}) as {
       email_id?: string;
       to?: string | string[];
-      tags?: { name: string; value: string }[];
+      tags?: unknown; // Resend may send an object map OR an array of {name,value}
       click?: { link?: string };
     };
     const type = (evt.type ?? "").replace(/^email\./, "");
     const recipient = Array.isArray(data.to) ? data.to[0] : data.to ?? "";
-    const post = (data.tags ?? []).find((t) => t.name === "post")?.value;
+
+    // tags can be { post: "slug" } (object map) or [{ name, value }] (array)
+    let post: string | undefined;
+    if (Array.isArray(data.tags)) {
+      post = (data.tags.find((t: { name?: string }) => t?.name === "post") as { value?: string } | undefined)?.value;
+    } else if (data.tags && typeof data.tags === "object") {
+      post = (data.tags as Record<string, string>).post;
+    }
 
     await recordEmailEvent({
       id: id || `${data.email_id}-${type}-${Date.now()}`,
