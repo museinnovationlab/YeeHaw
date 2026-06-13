@@ -73,6 +73,7 @@ export function renderPostEmail(
   const subject = post.emailSubject || post.title || "YeeHaw";
   const preheader = post.emailPreviewText || post.dek || "";
   const unsub = opts?.unsubscribeUrl || `${SITE_URL}/unsubscribe`;
+  const postUrl = post.slug ? `${SITE_URL}/posts/${post.slug}` : SITE_URL;
   const body = emailifyBody(post.bodyHtml || "", post.slug || post.title || "yeehaw");
 
   // funky striped divider that echoes the logo's layered shadow
@@ -122,7 +123,8 @@ export function renderPostEmail(
         <tr><td style="padding:28px;background:${CREAM};">
           <img src="${ARCADE}" alt="" width="74" style="display:block;width:74px;height:auto;margin:0 0 12px;" />
           <h1 style="font-size:28px;line-height:1.15;margin:0 0 8px;color:${INK};font-weight:800;">${esc(post.title || "")}</h1>
-          ${post.dek ? `<p style="font-size:17px;color:${INK};opacity:0.75;margin:0 0 22px;">${esc(post.dek)}</p>` : ""}
+          ${post.dek ? `<p style="font-size:17px;color:${INK};opacity:0.75;margin:0 0 10px;">${esc(post.dek)}</p>` : ""}
+          <p style="margin:0 0 22px;"><a href="${postUrl}" style="color:${PURPLE};font-weight:bold;text-decoration:none;">Read this on yeehaw.io →</a></p>
           <div class="yh-body">${body}</div>
         </td></tr>
 
