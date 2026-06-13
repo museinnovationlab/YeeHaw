@@ -27,13 +27,12 @@ export async function POST(req: NextRequest) {
   if (!secret) return NextResponse.json({ error: "not_configured" }, { status: 503 });
 
   const body = await req.text();
-  const ok = verifySvix(
-    secret,
-    req.headers.get("svix-id") || "",
-    req.headers.get("svix-timestamp") || "",
-    req.headers.get("svix-signature") || "",
-    body
-  );
+  // Svix headers come as either svix-* or the standard webhook-* names.
+  const h = (a: string, b: string) => req.headers.get(a) || req.headers.get(b) || "";
+  const id = h("svix-id", "webhook-id");
+  const ts = h("svix-timestamp", "webhook-timestamp");
+  const signature = h("svix-signature", "webhook-signature");
+  const ok = verifySvix(secret, id, ts, signature, body);
   if (!ok) return NextResponse.json({ error: "bad_signature" }, { status: 401 });
 
   let evt: { type?: string; data?: Record<string, unknown> };
@@ -54,7 +53,7 @@ export async function POST(req: NextRequest) {
   const post = (data.tags ?? []).find((t) => t.name === "post")?.value;
 
   await recordEmailEvent({
-    id: req.headers.get("svix-id") || `${data.email_id}-${type}-${Date.now()}`,
+    id: id || `${data.email_id}-${type}-${Date.now()}`,
     type,
     emailId: data.email_id ?? "",
     recipient,
