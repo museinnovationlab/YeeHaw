@@ -110,7 +110,7 @@ function Toolbar({ editor }: { editor: Editor }) {
   }, [editor]);
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b-2 border-ink bg-cream p-2">
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-1 rounded-t-[10px] border-b-2 border-ink bg-cream p-2 shadow-[0_4px_10px_-6px_rgba(23,20,31,0.5)]">
       <Btn title="Bold" onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")}>
         B
       </Btn>
@@ -229,7 +229,7 @@ export default function RichTextEditor({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border-2 border-ink bg-cream">
+    <div className="rounded-xl border-2 border-ink bg-cream">
       <Toolbar editor={editor} />
       <EditorContent editor={editor} />
     </div>
