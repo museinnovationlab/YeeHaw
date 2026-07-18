@@ -191,7 +191,7 @@ ${HEADING_CAPS}
 
         <!-- footer -->
         <tr><td style="padding:22px 28px;background:${INK};color:${CREAM};font-family:${FONT_MONO};font-size:12px;line-height:1.6;">
-          <p style="margin:0 0 6px;color:${CREAM};opacity:0.85;">You're getting this because you subscribed to YeeHaw at <a href="${SITE_URL}" style="color:${YELLOW};">yeehaw.io</a>.</p>
+          <p style="margin:0 0 6px;color:${CREAM};opacity:0.85;">You're getting this because you subscribed to YeeHaw at <a href="${SITE_URL}" style="color:${YELLOW};">YeeHaw.io</a>.</p>
           <p style="margin:0 0 6px;"><a href="${esc(unsub)}" style="color:${YELLOW};">Unsubscribe</a></p>
           <p style="margin:0;color:${CREAM};opacity:0.6;">${esc(POSTAL_ADDRESS)}</p>
         </td></tr>
@@ -262,7 +262,7 @@ export function renderWelcomeEmail(
 
         <!-- footer -->
         <tr><td style="padding:22px 28px;background:${INK};color:${CREAM};font-family:${FONT_MONO};font-size:12px;line-height:1.6;">
-          <p style="margin:0 0 6px;color:${CREAM};opacity:0.85;">You're getting this because you just subscribed to YeeHaw at <a href="${SITE_URL}" style="color:${YELLOW};">yeehaw.io</a>.</p>
+          <p style="margin:0 0 6px;color:${CREAM};opacity:0.85;">You're getting this because you just subscribed to YeeHaw at <a href="${SITE_URL}" style="color:${YELLOW};">YeeHaw.io</a>.</p>
           <p style="margin:0 0 6px;"><a href="${esc(unsub)}" style="color:${YELLOW};">Unsubscribe</a></p>
           <p style="margin:0;color:${CREAM};opacity:0.6;">${esc(POSTAL_ADDRESS)}</p>
         </td></tr>
