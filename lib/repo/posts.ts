@@ -112,6 +112,33 @@ export async function deletePost(id: string): Promise<void> {
 }
 
 /**
+ * Claim the right to broadcast a post, atomically. Sets emailSentAt only if it
+ * is currently unset and returns whether THIS call won the claim — so a double
+ * click, a retry, or two tabs can never mail the list twice. The claim is taken
+ * before sending: re-sending to 87 people is far worse than a send that fails
+ * after the flag is set (which is recoverable by hand).
+ */
+export async function claimEmailSend(id: string): Promise<boolean> {
+  if (!isFirebaseAdminConfigured) return false;
+  const ref = adminDb().collection(COLLECTION).doc(id);
+  return adminDb().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error("Post not found.");
+    if (snap.data()?.emailSentAt) return false; // already broadcast
+    tx.update(ref, { emailSentAt: FieldValue.serverTimestamp() });
+    return true;
+  });
+}
+
+/** Release a claim taken by claimEmailSend when the send failed outright. */
+export async function releaseEmailSend(id: string): Promise<void> {
+  if (!isFirebaseAdminConfigured) return;
+  await adminDb().collection(COLLECTION).doc(id).update({
+    emailSentAt: FieldValue.delete(),
+  });
+}
+
+/**
  * Publish any scheduled posts whose scheduledFor time has arrived. Called by the
  * cron endpoint. Idempotent: a post that's already published is never touched.
  * Returns the slugs that were just published (so the caller can fire emails).

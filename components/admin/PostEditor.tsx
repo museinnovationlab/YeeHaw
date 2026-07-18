@@ -8,6 +8,9 @@ import {
   savePostAction,
   generateWhatToWatchAction,
   sendTestEmailAction,
+  getBroadcastPreviewAction,
+  broadcastPostAction,
+  type BroadcastPreview,
 } from "@/app/admin/(dash)/posts/actions";
 import {
   getUnusedStashAction,
@@ -133,6 +136,11 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [testTo, setTestTo] = useState("");
   const [testBusy, setTestBusy] = useState(false);
   const [testMsg, setTestMsg] = useState<string | null>(null);
+  // Broadcast to the list: preview holds the confirm-step data (null = closed).
+  const [castPreview, setCastPreview] = useState<BroadcastPreview | null>(null);
+  const [castBusy, setCastBusy] = useState(false);
+  const [castMsg, setCastMsg] = useState<string | null>(null);
+  const [castConfirmText, setCastConfirmText] = useState("");
 
   // stash picker
   const [stashItems, setStashItems] = useState<StashItem[]>([]);
@@ -355,6 +363,42 @@ export default function PostEditor({ post }: { post: Post | null }) {
       setTestMsg(e instanceof Error ? e.message : "Test send failed.");
     } finally {
       setTestBusy(false);
+    }
+  }
+
+  /** Step 1 of the broadcast: fetch the real recipient count to confirm against. */
+  async function openBroadcast() {
+    if (!savedId || castBusy) return;
+    setCastBusy(true);
+    setCastMsg(null);
+    try {
+      setCastPreview(await getBroadcastPreviewAction(savedId));
+    } catch (e) {
+      setCastMsg(e instanceof Error ? e.message : "Couldn't load subscriber count.");
+    } finally {
+      setCastBusy(false);
+    }
+  }
+
+  /** Step 2: the actual send. Guarded server-side too — this is just the UI. */
+  async function confirmBroadcast() {
+    if (!savedId || castBusy || !castPreview) return;
+    setCastBusy(true);
+    setCastMsg(null);
+    try {
+      const r = await broadcastPostAction(savedId);
+      setCastMsg(
+        r.failedBatches
+          ? `Sent to ${r.sent} of ${r.recipients}. ${r.failedBatches} batch(es) failed — check Resend.`
+          : `✓ Sent to all ${r.sent} subscribers.`
+      );
+      setCastPreview(null);
+      router.refresh();
+    } catch (e) {
+      setCastMsg(e instanceof Error ? e.message : "Send failed.");
+      setCastPreview(null);
+    } finally {
+      setCastBusy(false);
     }
   }
 
@@ -636,12 +680,12 @@ export default function PostEditor({ post }: { post: Post | null }) {
             ⏳ Scheduled for {new Date(scheduleAt).toLocaleString()} — editable until then.
           </p>
         )}
-        {/* The broadcast send isn't built yet, and the editor's test-send button
-            makes it look like it is. Say so plainly until it ships. */}
+        {/* Publishing and broadcasting are separate on purpose — a send has no
+            undo, so it's always an explicit click. Say so, so nobody waits on an
+            email that was never triggered. */}
         <p className="font-mono rounded-lg border-2 border-orange bg-orange/10 px-3 py-2 text-xs text-ink">
-          📭 Publishing does <strong>not</strong> email your subscribers yet — the broadcast
-          send isn&apos;t built. &ldquo;Send test email&rdquo; only reaches the addresses you
-          type in.
+          📭 Publishing does <strong>not</strong> email your subscribers. Use{" "}
+          <strong>Send to subscribers</strong> in the sidebar when you&apos;re ready.
         </p>
         {error && <p className="text-sm text-pink">{error}</p>}
         {savedAt && !error && (
@@ -747,6 +791,87 @@ export default function PostEditor({ post }: { post: Post | null }) {
               {testBusy ? "Sending…" : "Send test ✉"}
             </button>
             {testMsg && <p className="font-mono mt-2 text-[11px] text-ink/70">{testMsg}</p>}
+          </div>
+        )}
+
+        {/* Broadcast to the whole list. Deliberately a separate, explicit action
+            rather than something publishing triggers — a send has no undo. */}
+        {savedId && (
+          <div className="rounded-xl border-2 border-pink bg-pink/5 p-3">
+            <p className="font-mono text-[11px] uppercase tracking-wide text-ink/60">
+              Send to subscribers
+            </p>
+
+            {post?.emailSentAt ? (
+              <p className="font-mono mt-1 text-[10px] text-ink/50">
+                ✓ Already sent {new Date(post.emailSentAt).toLocaleString()}. An issue can
+                only be broadcast once.
+              </p>
+            ) : post?.importedFromArchive ? (
+              <p className="font-mono mt-1 text-[10px] text-ink/50">
+                Backfilled archive issue — broadcasting is disabled so an old issue
+                can&apos;t go out to the list.
+              </p>
+            ) : status !== "published" ? (
+              <p className="font-mono mt-1 text-[10px] text-ink/40">
+                Publish the post first, then you can send it to the list.
+              </p>
+            ) : !castPreview ? (
+              <>
+                <p className="font-mono mt-1 text-[10px] text-ink/40">
+                  Sends the saved version to every active subscriber. There is no undo.
+                </p>
+                <button
+                  type="button"
+                  onClick={openBroadcast}
+                  disabled={castBusy}
+                  className="font-heading yh-shadow-sm mt-2 w-full rounded-full border-2 border-ink bg-pink px-4 py-2 text-sm text-cream transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+                >
+                  {castBusy ? "Checking…" : "Send to subscribers ▶"}
+                </button>
+              </>
+            ) : (
+              <div className="mt-2 rounded-lg border-2 border-ink bg-cream p-2">
+                <p className="font-mono text-[11px] text-ink">
+                  Send <strong>{castPreview.subject}</strong> to{" "}
+                  <strong>{castPreview.recipients}</strong> subscriber
+                  {castPreview.recipients === 1 ? "" : "s"}?
+                </p>
+                <p className="font-mono mt-1 text-[10px] text-ink/50">
+                  Unsubscribed and bounced addresses are already excluded. Type SEND to
+                  confirm.
+                </p>
+                <input
+                  type="text"
+                  value={castConfirmText}
+                  onChange={(e) => setCastConfirmText(e.target.value)}
+                  placeholder="SEND"
+                  className={`${inputClass} mt-2 font-mono text-sm`}
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={confirmBroadcast}
+                    disabled={castBusy || castConfirmText.trim().toUpperCase() !== "SEND"}
+                    className="font-heading yh-shadow-sm flex-1 rounded-full border-2 border-ink bg-pink px-3 py-2 text-sm text-cream transition-transform hover:-translate-y-0.5 disabled:opacity-40"
+                  >
+                    {castBusy ? "Sending…" : `Send to ${castPreview.recipients} ▶`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCastPreview(null);
+                      setCastConfirmText("");
+                    }}
+                    disabled={castBusy}
+                    className="font-mono rounded-full border-2 border-ink bg-cream px-3 py-2 text-xs uppercase hover:bg-yellow disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            {castMsg && <p className="font-mono mt-2 text-[11px] text-ink/70">{castMsg}</p>}
           </div>
         )}
         {savedId && (
