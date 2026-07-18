@@ -73,7 +73,11 @@ export function renderPostEmail(
   const subject = post.emailSubject || post.title || "YeeHaw";
   const preheader = post.emailPreviewText || post.dek || "";
   const unsub = opts?.unsubscribeUrl || `${SITE_URL}/unsubscribe`;
-  const postUrl = post.slug ? `${SITE_URL}/posts/${post.slug}` : SITE_URL;
+  // A post's public page only exists once it's published, so an unpublished
+  // post (i.e. a test send) would 404. Fall back to the archive, which always
+  // lists the newest published issues.
+  const isLive = post.status === "published" && Boolean(post.slug);
+  const postUrl = isLive ? `${SITE_URL}/posts/${post.slug}` : `${SITE_URL}/archive`;
   const body = emailifyBody(post.bodyHtml || "", post.slug || post.title || "yeehaw");
 
   // funky striped divider that echoes the logo's layered shadow
@@ -124,7 +128,7 @@ export function renderPostEmail(
           <img src="${ARCADE}" alt="" width="74" style="display:block;width:74px;height:auto;margin:0 0 12px;" />
           <h1 style="font-size:28px;line-height:1.15;margin:0 0 8px;color:${INK};font-weight:800;">${esc(post.title || "")}</h1>
           ${post.dek ? `<p style="font-size:17px;color:${INK};opacity:0.75;margin:0 0 10px;">${esc(post.dek)}</p>` : ""}
-          <p style="margin:0 0 22px;"><a href="${postUrl}" style="color:${PURPLE};font-weight:bold;text-decoration:none;">Read this on yeehaw.io →</a></p>
+          <p style="margin:0 0 22px;"><a href="${postUrl}" style="color:${PURPLE};font-weight:bold;text-decoration:none;">${isLive ? "Read this on yeehaw.io →" : "Read the latest on yeehaw.io →"}</a></p>
           <div class="yh-body">${body}</div>
         </td></tr>
 
