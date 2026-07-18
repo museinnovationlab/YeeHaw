@@ -80,7 +80,9 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [aiNotes, setAiNotes] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [aiMode, setAiMode] = useState<"replace" | "append">("replace");
+  // Default to the non-destructive mode so an accidental generate can't wipe a
+  // draft in progress; "replace" stays one click away for a from-scratch draft.
+  const [aiMode, setAiMode] = useState<"replace" | "append">("append");
   const [editorKey, setEditorKey] = useState(0); // bump to reload editor content
   const [w2wBusy, setW2wBusy] = useState(false);
   const [testTo, setTestTo] = useState("");
