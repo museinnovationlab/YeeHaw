@@ -8,6 +8,7 @@ import {
   getPostById,
   claimEmailSend,
   releaseEmailSend,
+  recordEmailRecipients,
   type PostInput,
 } from "@/lib/repo/posts";
 import { getWeekendPicks, renderWhatToWatchHtml, isTmdbConfigured } from "@/lib/tmdb";
@@ -183,6 +184,10 @@ export async function broadcastPostAction(
     // Resend allows 10 req/s per team; pause between chunks to stay clear.
     if (i + BATCH_MAX < messages.length) await new Promise((r) => setTimeout(r, 500));
   }
+
+  // Store the accepted count so Analytics can show delivered-out-of-N and make
+  // the "still confirming" gap visible instead of a mystery.
+  await recordEmailRecipients(postId, sent).catch(() => {});
 
   revalidatePath("/admin");
   return { sent, failedBatches, recipients: recipients.length };

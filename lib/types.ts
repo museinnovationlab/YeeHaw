@@ -76,6 +76,9 @@ export interface Post {
   scheduledFor?: string;
   /** set once the broadcast email goes out, so editing later never re-sends */
   emailSentAt?: string;
+  /** how many messages Resend accepted for this issue — the denominator that
+   *  makes "delivered" meaningful (delivery confirms over hours, not instantly) */
+  emailRecipients?: number;
 }
 
 /** A future recommendation idea the user has stashed for an eventual post. */

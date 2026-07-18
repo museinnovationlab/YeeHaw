@@ -145,6 +145,11 @@ export interface IssueDetail {
   post: string;
   sentAt: string;
   delivered: number;
+  /** how many Resend accepted, when known — the denominator for delivery */
+  accepted?: number;
+  bounced: string[]; // hard-bounced addresses (auto-suppressed)
+  /** accepted − delivered − bounced: still awaiting confirmation */
+  pending: number;
   opened: string[]; // recipient emails who opened
   notOpened: string[]; // delivered − opened
   totalClicks: number;
@@ -156,12 +161,20 @@ export interface IssueDetail {
 }
 
 /** Per-issue detail with recipient-level open/click breakdown. */
-export async function getIssueDetail(post: string): Promise<IssueDetail | null> {
+export async function getIssueDetail(
+  post: string,
+  accepted?: number
+): Promise<IssueDetail | null> {
   const events = (await getAllEmailEvents()).filter((e) => (e.post || UNTAGGED) === post);
   if (!events.length) return null;
 
   const deliveredSet = new Set(events.filter((e) => e.type === "delivered").map((e) => e.recipient));
   const openedSet = new Set(events.filter((e) => e.type === "opened").map((e) => e.recipient));
+  const bouncedSet = new Set(events.filter((e) => e.type === "bounced").map((e) => e.recipient));
+  // A "sent" event (subscribe to email.sent in Resend) gives the denominator
+  // even when the stored accepted count is missing, e.g. for older issues.
+  const sentSet = new Set(events.filter((e) => e.type === "sent").map((e) => e.recipient));
+  const denominator = accepted ?? (sentSet.size || undefined);
   const audience = deliveredSet.size ? deliveredSet : new Set(events.map((e) => e.recipient));
 
   const opened = [...audience].filter((r) => openedSet.has(r)).sort();
@@ -196,6 +209,11 @@ export async function getIssueDetail(post: string): Promise<IssueDetail | null> 
     post,
     sentAt: events.map((e) => e.createdAt).filter(Boolean).sort()[0] ?? "",
     delivered: audience.size,
+    accepted: denominator,
+    bounced: [...bouncedSet].sort(),
+    pending: denominator
+      ? Math.max(0, denominator - deliveredSet.size - bouncedSet.size)
+      : 0,
     opened,
     notOpened,
     totalClicks,

@@ -35,9 +35,9 @@ export default async function IssueAnalyticsPage({
 }) {
   const { post } = await params;
   const slug = decodeURIComponent(post);
-  const detail = await getIssueDetail(slug);
-  if (!detail) notFound();
   const postDoc = await getPostBySlug(slug);
+  const detail = await getIssueDetail(slug, postDoc?.emailRecipients);
+  if (!detail) notFound();
   const title = postDoc?.title || slug;
 
   return (
@@ -48,14 +48,40 @@ export default async function IssueAnalyticsPage({
       <h1 className="font-heading mt-3 text-2xl text-ink">{title}</h1>
       <p className="font-mono mb-6 text-sm text-ink/50">Sent {fmtDate(detail.sentAt)}</p>
 
-      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="sent to" value={detail.delivered} />
+      {/* Delivery accounting first — accepted vs delivered vs bounced vs still
+          confirming, so a gap between "sent to N" and "delivered" is legible. */}
+      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {detail.accepted != null && <Stat label="accepted" value={detail.accepted} />}
+        <Stat label="delivered" value={detail.delivered} />
+        <Stat label="bounced" value={detail.bounced.length} sub="auto-suppressed" />
+        {detail.accepted != null && (
+          <Stat label="confirming" value={detail.pending} sub="usually clears in hours" />
+        )}
+      </div>
+
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Stat label="opened" value={detail.opened.length} sub={`${detail.openRate}%`} />
         <Stat label="not opened" value={detail.notOpened.length} />
         <Stat label="clicked" value={detail.clickers.length} sub={`${detail.clickRate}%`} />
         <Stat label="total clicks" value={detail.totalClicks} />
         <Stat label="clicks / recipient" value={detail.avgClicksPerRecipient} />
       </div>
+
+      {detail.bounced.length > 0 && (
+        <section className="mb-8">
+          <h2 className="font-heading mb-3 text-lg text-ink">
+            Bounced <span className="font-mono text-sm text-ink/50">({detail.bounced.length})</span>
+          </h2>
+          <p className="font-mono mb-2 text-[11px] text-ink/40">
+            Dead addresses. Already flagged so future sends skip them.
+          </p>
+          <ul className="flex flex-col gap-1 rounded-2xl border-2 border-orange/50 bg-orange/5 p-4 font-mono text-sm text-ink/70">
+            {detail.bounced.map((e) => (
+              <li key={e} className="truncate">{e}</li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* top links */}
       {detail.topLinks.length > 0 && (

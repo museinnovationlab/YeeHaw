@@ -190,7 +190,15 @@ function toPost(id: string, data: Record<string, unknown>): Post {
     publishedAt: iso(data.publishedAt),
     scheduledFor: iso(data.scheduledFor),
     emailSentAt: iso(data.emailSentAt),
+    emailRecipients:
+      typeof data.emailRecipients === "number" ? data.emailRecipients : undefined,
   };
+}
+
+/** Record how many messages Resend accepted, so Analytics has a denominator. */
+export async function recordEmailRecipients(id: string, n: number): Promise<void> {
+  if (!isFirebaseAdminConfigured) return;
+  await adminDb().collection(COLLECTION).doc(id).update({ emailRecipients: n });
 }
 
 /** Published posts, newest first. Falls back to sample posts when Firestore is
