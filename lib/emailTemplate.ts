@@ -173,7 +173,7 @@ ${HEADING_CAPS}
           <img src="${ARCADE}" alt="" width="74" style="display:block;width:74px;height:auto;margin:0 0 12px;" />
           <h1 class="yh-title" style="font-family:${FONT_HEADING};font-size:28px;line-height:1.15;margin:0 0 8px;color:${INK};font-weight:800;">${esc(post.title || "")}</h1>
           ${post.dek ? `<p style="font-family:${FONT_BODY};font-size:17px;color:${INK};opacity:0.75;margin:0 0 10px;">${esc(post.dek)}</p>` : ""}
-          <p style="font-family:${FONT_BODY};margin:0 0 22px;"><a href="${postUrl}" style="color:${PURPLE};font-weight:bold;text-decoration:none;">${isLive ? "Read this on yeehaw.io →" : "Read the latest on yeehaw.io →"}</a></p>
+          <p style="font-family:${FONT_BODY};margin:0 0 22px;"><a href="${postUrl}" style="color:${PURPLE};font-weight:bold;text-decoration:none;">${isLive ? "Read this on YeeHaw.io →" : "Read the latest on YeeHaw.io →"}</a></p>
           <div class="yh-body">${body}</div>
         </td></tr>
 
