@@ -6,6 +6,8 @@ import {
   importSubscribersAction,
   setSubscriberStatusAction,
   deleteSubscriberAction,
+  auditSubscriberDomainsAction,
+  type DomainAudit,
 } from "@/app/admin/(dash)/subscribers/actions";
 import type { Subscriber } from "@/lib/types";
 
@@ -38,6 +40,21 @@ export default function SubscribersManager({
   const [paste, setPaste] = useState("");
   const [result, setResult] = useState<string | null>(null);
   const [showUnsub, setShowUnsub] = useState(false);
+  const [audit, setAudit] = useState<DomainAudit | null>(null);
+  const [auditBusy, setAuditBusy] = useState(false);
+
+  function runAudit() {
+    if (auditBusy) return;
+    setAuditBusy(true);
+    setAudit(null);
+    startTransition(async () => {
+      try {
+        setAudit(await auditSubscriberDomainsAction());
+      } finally {
+        setAuditBusy(false);
+      }
+    });
+  }
 
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
@@ -154,6 +171,82 @@ export default function SubscribersManager({
             </li>
           ))}
         </ul>
+
+        {/* Domain health audit — read-only; suggests, never acts on its own. */}
+        <div className="mt-8 rounded-xl border-2 border-ink/20 bg-cream p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-[11px] uppercase tracking-wide text-ink/60">
+                Domain health check
+              </p>
+              <p className="font-mono mt-1 text-[10px] text-ink/40">
+                Looks up whether each subscriber&apos;s domain can receive mail at all.
+              </p>
+            </div>
+            <button
+              onClick={runAudit}
+              disabled={auditBusy || pending}
+              className="font-mono shrink-0 rounded-full border-2 border-ink bg-cream px-3 py-1.5 text-[10px] uppercase tracking-wide hover:bg-yellow disabled:opacity-40"
+            >
+              {auditBusy ? "Checking…" : "Run check"}
+            </button>
+          </div>
+
+          {audit && (
+            <div className="mt-3 border-t-2 border-ink/10 pt-3">
+              <p className="font-mono text-[11px] text-ink/70">
+                Checked {audit.checked} active subscribers across {audit.domains} domains ·{" "}
+                {audit.okDomains} healthy · {audit.problems.length} flagged
+              </p>
+
+              {audit.problems.length === 0 ? (
+                <p className="font-mono mt-2 text-[11px] text-ink/60">
+                  ✓ Every domain has a working mail server.
+                </p>
+              ) : (
+                <ul className="mt-2 flex flex-col gap-2">
+                  {audit.problems.map((p) => (
+                    <li
+                      key={p.domain}
+                      className="rounded-lg border-2 border-orange/50 bg-orange/5 p-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono truncate text-xs font-bold text-ink">
+                          {p.domain}
+                        </span>
+                        <span className="font-mono shrink-0 rounded-full border border-ink/30 px-1.5 py-0.5 text-[9px] uppercase text-ink/60">
+                          {p.verdict === "a_fallback" ? "no mail server" : p.verdict}
+                        </span>
+                      </div>
+                      <p className="font-mono mt-0.5 text-[10px] text-ink/50">{p.detail}</p>
+                      <ul className="mt-1 flex flex-col gap-1">
+                        {p.emails.map((e) => (
+                          <li key={e} className="flex items-center justify-between gap-2">
+                            <span className="font-mono truncate text-[11px] text-ink/70">{e}</span>
+                            <button
+                              onClick={() =>
+                                run(() => setSubscriberStatusAction(e, "bounced"))
+                              }
+                              disabled={pending}
+                              className="font-mono shrink-0 rounded-full border-2 border-ink/60 bg-cream px-2 py-0.5 text-[9px] uppercase hover:bg-pink hover:text-cream disabled:opacity-40"
+                            >
+                              suppress
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="font-mono mt-2 text-[10px] text-ink/40">
+                Catches dead domains, not dead mailboxes at live domains — those only show up
+                as bounces after a send. &ldquo;Unknown&rdquo; means the lookup failed, not
+                that the domain is bad.
+              </p>
+            </div>
+          )}
+        </div>
 
         <div className="mt-8">
           <button

@@ -6,7 +6,9 @@ import {
   addSubscribersBulk,
   setSubscriberStatus,
   deleteSubscriber,
+  getAllSubscribers,
 } from "@/lib/repo/subscribers";
+import { checkDomains, type DomainVerdict } from "@/lib/mxCheck";
 import type { SubscriberStatus } from "@/lib/types";
 
 async function requireAdmin() {
@@ -61,4 +63,56 @@ export async function deleteSubscriberAction(email: string): Promise<void> {
   await requireAdmin();
   await deleteSubscriber(email);
   revalidatePath("/admin/subscribers");
+}
+
+export interface DomainAuditRow {
+  domain: string;
+  verdict: DomainVerdict;
+  detail: string;
+  emails: string[];
+}
+
+export interface DomainAudit {
+  checked: number; // active subscribers scanned
+  domains: number; // unique domains looked up
+  problems: DomainAuditRow[]; // dead / a_fallback / unknown, worst first
+  okDomains: number;
+}
+
+/**
+ * Look up every active subscriber's domain and report which ones can't receive
+ * mail. Read-only on purpose: it suggests, you decide. An MX check catches dead
+ * DOMAINS (like domainworld.com, which has no MX and deferral-loops), not dead
+ * MAILBOXES at live domains — those only surface as bounces after a send.
+ */
+export async function auditSubscriberDomainsAction(): Promise<DomainAudit> {
+  await requireAdmin();
+
+  const active = (await getAllSubscribers()).filter((s) => s.status === "subscribed");
+  const byDomain = new Map<string, string[]>();
+  for (const s of active) {
+    const d = s.email.split("@")[1]?.toLowerCase();
+    if (!d) continue;
+    if (!byDomain.has(d)) byDomain.set(d, []);
+    byDomain.get(d)!.push(s.email);
+  }
+
+  const results = await checkDomains([...byDomain.keys()]);
+  const RANK: Record<DomainVerdict, number> = { dead: 0, a_fallback: 1, unknown: 2, ok: 3 };
+  const problems: DomainAuditRow[] = [];
+  let okDomains = 0;
+
+  for (const [domain, emails] of byDomain) {
+    const r = results.get(domain);
+    if (!r || r.verdict === "ok") {
+      okDomains += 1;
+      continue;
+    }
+    problems.push({ domain, verdict: r.verdict, detail: r.detail, emails: emails.sort() });
+  }
+  problems.sort(
+    (a, b) => RANK[a.verdict] - RANK[b.verdict] || b.emails.length - a.emails.length
+  );
+
+  return { checked: active.length, domains: byDomain.size, problems, okDomains };
 }
