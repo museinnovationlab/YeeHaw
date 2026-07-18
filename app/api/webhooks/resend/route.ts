@@ -68,10 +68,14 @@ export async function POST(req: NextRequest) {
       link: data.click?.link,
     });
 
-    // Hard bounces and spam complaints suppress the address so future sends skip
-    // it. (Only flags an existing subscriber — see markSuppressed.)
-    if ((type === "bounced" || type === "complained") && recipient) {
-      await markSuppressed(recipient, type);
+    // Suppress addresses that can never receive mail so future sends skip them.
+    // "failed" covers Resend refusing an address on its own suppression list —
+    // it silently never delivers, which otherwise looks identical to a message
+    // still in flight. delivery_delayed is deliberately NOT here: that's a
+    // temporary deferral the receiving server may still accept on retry.
+    const DEAD = new Set(["bounced", "complained", "failed"]);
+    if (DEAD.has(type) && recipient) {
+      await markSuppressed(recipient, type === "complained" ? "complained" : "bounced");
     }
 
     return NextResponse.json({ ok: true });
