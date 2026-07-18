@@ -633,10 +633,16 @@ export default function PostEditor({ post }: { post: Post | null }) {
 
         {status === "scheduled" && scheduleAt && (
           <p className="font-mono rounded-lg border-2 border-cyan bg-cyan/10 px-3 py-2 text-xs text-ink">
-            ⏳ Scheduled for {new Date(scheduleAt).toLocaleString()} — editable until then;
-            no email goes out until it publishes.
+            ⏳ Scheduled for {new Date(scheduleAt).toLocaleString()} — editable until then.
           </p>
         )}
+        {/* The broadcast send isn't built yet, and the editor's test-send button
+            makes it look like it is. Say so plainly until it ships. */}
+        <p className="font-mono rounded-lg border-2 border-orange bg-orange/10 px-3 py-2 text-xs text-ink">
+          📭 Publishing does <strong>not</strong> email your subscribers yet — the broadcast
+          send isn&apos;t built. &ldquo;Send test email&rdquo; only reaches the addresses you
+          type in.
+        </p>
         {error && <p className="text-sm text-pink">{error}</p>}
         {savedAt && !error && (
           <p className="font-mono text-[11px] text-ink/50">Saved at {savedAt}</p>
