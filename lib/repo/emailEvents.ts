@@ -40,6 +40,24 @@ export async function recordEmailEvent(e: {
     );
 }
 
+/**
+ * Record an unsubscribe against the issue it came from. Resend has no webhook
+ * for this — the unsubscribe flow is ours — so we write the event directly.
+ * The id is deterministic (address + issue) so a repeat click, the one-click
+ * header firing twice, or an unsub/resub/unsub cycle can't inflate the count.
+ */
+export async function recordUnsubscribe(email: string, post?: string): Promise<void> {
+  const recipient = (email ?? "").trim().toLowerCase();
+  if (!recipient) return;
+  await recordEmailEvent({
+    id: `unsub-${post || "none"}-${recipient}`,
+    type: "unsubscribed",
+    emailId: "",
+    recipient,
+    post,
+  });
+}
+
 function iso(v: unknown): string {
   const ts = v as { toDate?: () => Date };
   if (ts && typeof ts.toDate === "function") return ts.toDate().toISOString();
@@ -84,6 +102,7 @@ export interface IssueSummary {
   delivered: number;
   opened: number;
   clicked: number;
+  unsubscribed: number;
 }
 
 export interface EmailReport {
@@ -95,6 +114,8 @@ export interface EmailReport {
     openRate: number; // %
     clickRate: number; // %
     avgClicksPerIssue: number;
+    unsubscribed: number;
+    unsubRate: number; // % of delivered
   };
   issues: IssueSummary[];
 }
@@ -106,12 +127,16 @@ export async function getEmailReport(): Promise<EmailReport> {
   let recipients = 0,
     opened = 0,
     clicked = 0,
-    totalClicks = 0;
+    totalClicks = 0,
+    unsubscribed = 0;
 
   for (const [post, evs] of groups) {
     const deliveredSet = new Set(evs.filter((e) => e.type === "delivered").map((e) => e.recipient));
     const openedSet = new Set(evs.filter((e) => e.type === "opened").map((e) => e.recipient));
     const clickedSet = new Set(evs.filter((e) => e.type === "clicked").map((e) => e.recipient));
+    const unsubSet = new Set(
+      evs.filter((e) => e.type === "unsubscribed").map((e) => e.recipient)
+    );
     const sentAt = evs.map((e) => e.createdAt).filter(Boolean).sort()[0] ?? "";
     issues.push({
       post,
@@ -119,10 +144,12 @@ export async function getEmailReport(): Promise<EmailReport> {
       delivered: deliveredSet.size,
       opened: openedSet.size,
       clicked: clickedSet.size,
+      unsubscribed: unsubSet.size,
     });
     recipients += deliveredSet.size;
     opened += openedSet.size;
     clicked += clickedSet.size;
+    unsubscribed += unsubSet.size;
     totalClicks += evs.filter((e) => e.type === "clicked").length;
   }
 
@@ -136,6 +163,8 @@ export async function getEmailReport(): Promise<EmailReport> {
       openRate: pctOf(opened, recipients),
       clickRate: pctOf(clicked, recipients),
       avgClicksPerIssue: issues.length ? round1(totalClicks / issues.length) : 0,
+      unsubscribed,
+      unsubRate: pctOf(unsubscribed, recipients),
     },
     issues,
   };
@@ -148,6 +177,7 @@ export interface IssueDetail {
   /** how many Resend accepted, when known — the denominator for delivery */
   accepted?: number;
   bounced: string[]; // hard-bounced addresses (auto-suppressed)
+  unsubscribed: string[]; // who opted out from this issue
   /** accepted − delivered − bounced: still awaiting confirmation */
   pending: number;
   opened: string[]; // recipient emails who opened
@@ -174,6 +204,9 @@ export async function getIssueDetail(
   // A "sent" event (subscribe to email.sent in Resend) gives the denominator
   // even when the stored accepted count is missing, e.g. for older issues.
   const sentSet = new Set(events.filter((e) => e.type === "sent").map((e) => e.recipient));
+  const unsubSet = new Set(
+    events.filter((e) => e.type === "unsubscribed").map((e) => e.recipient)
+  );
   const denominator = accepted ?? (sentSet.size || undefined);
   const audience = deliveredSet.size ? deliveredSet : new Set(events.map((e) => e.recipient));
 
@@ -211,6 +244,7 @@ export async function getIssueDetail(
     delivered: audience.size,
     accepted: denominator,
     bounced: [...bouncedSet].sort(),
+    unsubscribed: [...unsubSet].sort(),
     pending: denominator
       ? Math.max(0, denominator - deliveredSet.size - bouncedSet.size)
       : 0,

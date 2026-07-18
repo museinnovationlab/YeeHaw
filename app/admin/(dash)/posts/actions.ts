@@ -59,12 +59,14 @@ export async function sendTestEmailAction(
   const failed: { to: string; error: string }[] = [];
   for (const to of unique) {
     // Render per-recipient so the unsubscribe link/header is personalized.
-    const { subject, html } = renderPostEmail(post, { unsubscribeUrl: unsubscribeUrl(to) });
+    const { subject, html } = renderPostEmail(post, {
+      unsubscribeUrl: unsubscribeUrl(to, post.slug),
+    });
     const r = await sendEmail({
       to,
       subject: `[TEST] ${subject}`,
       html,
-      headers: listUnsubscribeHeaders(to),
+      headers: listUnsubscribeHeaders(to, post.slug),
       tags: [{ name: "post", value: post.slug }],
     });
     if (r.error) failed.push({ to, error: r.error });
@@ -146,12 +148,14 @@ export async function broadcastPostAction(
   }
 
   const messages: BatchEmail[] = recipients.map((to) => {
-    const { subject, html } = renderPostEmail(post, { unsubscribeUrl: unsubscribeUrl(to) });
+    const { subject, html } = renderPostEmail(post, {
+      unsubscribeUrl: unsubscribeUrl(to, post.slug),
+    });
     return {
       to,
       subject,
       html,
-      headers: listUnsubscribeHeaders(to),
+      headers: listUnsubscribeHeaders(to, post.slug),
       tags: [{ name: "post", value: post.slug }],
     };
   });

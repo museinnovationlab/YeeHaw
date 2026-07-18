@@ -3,7 +3,16 @@
 import { useState, useTransition } from "react";
 import { unsubscribeAction, resubscribeAction } from "@/app/unsubscribe/actions";
 
-export default function UnsubscribeConfirm({ email, token }: { email: string; token: string }) {
+export default function UnsubscribeConfirm({
+  email,
+  token,
+  post,
+}: {
+  email: string;
+  token: string;
+  /** which issue this link came from — attribution only */
+  post?: string;
+}) {
   const [state, setState] = useState<"idle" | "unsubscribed" | "resubscribed">("idle");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -49,7 +58,7 @@ export default function UnsubscribeConfirm({ email, token }: { email: string; to
         Unsubscribe <span className="font-mono text-sm text-ink/70">{email}</span> from YeeHaw?
       </p>
       <button
-        onClick={() => run(() => unsubscribeAction(email, token), "unsubscribed")}
+        onClick={() => run(() => unsubscribeAction(email, token, post), "unsubscribed")}
         disabled={pending}
         className="font-heading yh-shadow-sm mt-4 rounded-full border-2 border-ink bg-pink px-6 py-3 text-cream transition-transform hover:-translate-y-0.5 disabled:opacity-50"
       >

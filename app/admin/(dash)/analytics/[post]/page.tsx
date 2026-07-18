@@ -59,13 +59,36 @@ export default async function IssueAnalyticsPage({
         )}
       </div>
 
-      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="opened" value={detail.opened.length} sub={`${detail.openRate}%`} />
         <Stat label="not opened" value={detail.notOpened.length} />
         <Stat label="clicked" value={detail.clickers.length} sub={`${detail.clickRate}%`} />
         <Stat label="total clicks" value={detail.totalClicks} />
         <Stat label="clicks / recipient" value={detail.avgClicksPerRecipient} />
+        <Stat
+          label="unsubscribed"
+          value={detail.unsubscribed.length}
+          sub={detail.delivered ? `${Math.round((detail.unsubscribed.length / detail.delivered) * 100)}%` : undefined}
+        />
       </div>
+
+      {detail.unsubscribed.length > 0 && (
+        <section className="mb-8">
+          <h2 className="font-heading mb-3 text-lg text-ink">
+            Unsubscribed{" "}
+            <span className="font-mono text-sm text-ink/50">({detail.unsubscribed.length})</span>
+          </h2>
+          <p className="font-mono mb-2 text-[11px] text-ink/40">
+            Opted out from this issue. A clean opt-out is far better for your sending
+            reputation than a spam complaint.
+          </p>
+          <ul className="flex flex-col gap-1 rounded-2xl border-2 border-ink/30 bg-cream p-4 font-mono text-sm text-ink/60">
+            {detail.unsubscribed.map((e) => (
+              <li key={e} className="truncate">{e}</li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {detail.bounced.length > 0 && (
         <section className="mb-8">

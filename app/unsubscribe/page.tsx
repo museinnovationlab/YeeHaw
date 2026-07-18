@@ -10,9 +10,9 @@ export const metadata: Metadata = { title: "Unsubscribe · YeeHaw", robots: { in
 export default async function UnsubscribePage({
   searchParams,
 }: {
-  searchParams: Promise<{ e?: string; t?: string }>;
+  searchParams: Promise<{ e?: string; t?: string; p?: string }>;
 }) {
-  const { e = "", t = "" } = await searchParams;
+  const { e = "", t = "", p = "" } = await searchParams;
   const email = e.trim().toLowerCase();
   const valid = verifyUnsub(email, t);
 
@@ -22,7 +22,7 @@ export default async function UnsubscribePage({
       <main className="mx-auto max-w-xl px-4 py-20">
         <h1 className="font-heading mb-6 text-3xl text-ink">Unsubscribe</h1>
         {valid ? (
-          <UnsubscribeConfirm email={email} token={t} />
+          <UnsubscribeConfirm email={email} token={t} post={p} />
         ) : (
           <p className="font-mono text-ink/60">
             This unsubscribe link is invalid or expired. If you keep getting YeeHaw and didn&apos;t

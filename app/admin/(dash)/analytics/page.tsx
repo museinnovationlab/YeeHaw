@@ -40,12 +40,13 @@ export default async function AnalyticsPage() {
       ) : (
         <>
           {/* all-time roll-up */}
-          <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="issues" value={o.issues} />
             <Stat label="recipients" value={o.recipients} />
             <Stat label="open rate" value={`${o.openRate}%`} />
             <Stat label="click rate" value={`${o.clickRate}%`} />
             <Stat label="clicks / issue" value={o.avgClicksPerIssue} />
+            <Stat label="unsubscribes" value={`${o.unsubscribed} (${o.unsubRate}%)`} />
           </div>
 
           {/* one row per send */}
@@ -59,6 +60,7 @@ export default async function AnalyticsPage() {
                   <th className="px-4 py-2 text-right font-mono text-xs uppercase">Sent to</th>
                   <th className="px-4 py-2 text-right font-mono text-xs uppercase">Opens</th>
                   <th className="px-4 py-2 text-right font-mono text-xs uppercase">Clicks</th>
+                  <th className="px-4 py-2 text-right font-mono text-xs uppercase">Unsubs</th>
                 </tr>
               </thead>
               <tbody>
@@ -81,6 +83,10 @@ export default async function AnalyticsPage() {
                     <td className="px-4 py-3 text-right font-mono text-purple">
                       {s.clicked}{" "}
                       <span className="text-ink/40">({s.delivered ? Math.round((s.clicked / s.delivered) * 100) : 0}%)</span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-ink/60">
+                      {s.unsubscribed}{" "}
+                      <span className="text-ink/40">({s.delivered ? Math.round((s.unsubscribed / s.delivered) * 100) : 0}%)</span>
                     </td>
                   </tr>
                 ))}

@@ -28,17 +28,27 @@ export function verifyUnsub(email: string, token: string): boolean {
   }
 }
 
+// `post` is attribution only — it says which issue someone unsubscribed from,
+// so it isn't covered by the token. Faking it could only misattribute a stat,
+// never unsubscribe anyone (that still needs a valid HMAC for the address).
+function postParam(post?: string): string {
+  return post ? `&p=${encodeURIComponent(post)}` : "";
+}
+
 /** Human-facing confirm page link (goes in the email footer). */
-export function unsubscribeUrl(email: string): string {
+export function unsubscribeUrl(email: string, post?: string): string {
   const e = encodeURIComponent(norm(email));
-  return `${SITE_URL}/unsubscribe?e=${e}&t=${unsubToken(email)}`;
+  return `${SITE_URL}/unsubscribe?e=${e}&t=${unsubToken(email)}${postParam(post)}`;
 }
 
 /** RFC 8058 one-click headers (Gmail/Yahoo POST to this to unsubscribe). */
-export function listUnsubscribeHeaders(email: string): Record<string, string> {
+export function listUnsubscribeHeaders(
+  email: string,
+  post?: string
+): Record<string, string> {
   const e = encodeURIComponent(norm(email));
   return {
-    "List-Unsubscribe": `<${SITE_URL}/api/unsubscribe?e=${e}&t=${unsubToken(email)}>`,
+    "List-Unsubscribe": `<${SITE_URL}/api/unsubscribe?e=${e}&t=${unsubToken(email)}${postParam(post)}>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
   };
 }

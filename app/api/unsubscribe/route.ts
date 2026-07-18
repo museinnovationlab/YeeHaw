@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyUnsub } from "@/lib/unsubscribe";
 import { setSubscriberStatus } from "@/lib/repo/subscribers";
+import { recordUnsubscribe } from "@/lib/repo/emailEvents";
 
 // Unsubscribe via a signed token — no login. Used by Gmail/Yahoo one-click
 // (List-Unsubscribe-Post) and by the confirm page's button. email + token come
@@ -14,6 +15,10 @@ async function unsubscribe(req: NextRequest) {
     return NextResponse.json({ error: "invalid_token" }, { status: 400 });
   }
   await setSubscriberStatus(email, "unsubscribed");
+  // Attribute it to the issue, but never let a stats write fail the unsubscribe.
+  await recordUnsubscribe(email, req.nextUrl.searchParams.get("p") || undefined).catch(
+    (e) => console.error("unsubscribe event failed:", e)
+  );
   return NextResponse.json({ ok: true });
 }
 
@@ -24,7 +29,12 @@ export const POST = unsubscribe;
 export function GET(req: NextRequest) {
   const e = req.nextUrl.searchParams.get("e") || "";
   const t = req.nextUrl.searchParams.get("t") || "";
+  const p = req.nextUrl.searchParams.get("p") || "";
+  const post = p ? `&p=${encodeURIComponent(p)}` : "";
   return NextResponse.redirect(
-    new URL(`/unsubscribe?e=${encodeURIComponent(e)}&t=${encodeURIComponent(t)}`, req.url)
+    new URL(
+      `/unsubscribe?e=${encodeURIComponent(e)}&t=${encodeURIComponent(t)}${post}`,
+      req.url
+    )
   );
 }
