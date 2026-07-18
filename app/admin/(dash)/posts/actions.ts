@@ -169,7 +169,16 @@ export async function broadcastPostAction(
         throw new Error(`Send failed, nothing went out: ${res.error}`);
       }
     } else {
-      sent += chunk.length;
+      // Count what Resend actually ACCEPTED (one id per message), not what we
+      // handed it. These matched on the first real send, but assuming they
+      // always match would silently hide a partial batch.
+      const accepted = res.ids.length || chunk.length;
+      if (res.ids.length && res.ids.length !== chunk.length) {
+        console.error(
+          `broadcast: submitted ${chunk.length} but Resend accepted ${res.ids.length}`
+        );
+      }
+      sent += accepted;
     }
     // Resend allows 10 req/s per team; pause between chunks to stay clear.
     if (i + BATCH_MAX < messages.length) await new Promise((r) => setTimeout(r, 500));

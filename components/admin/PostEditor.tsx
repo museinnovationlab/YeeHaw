@@ -387,10 +387,13 @@ export default function PostEditor({ post }: { post: Post | null }) {
     setCastMsg(null);
     try {
       const r = await broadcastPostAction(savedId);
+      // "Accepted", not "delivered" — Resend takes the whole batch immediately,
+      // but inboxes confirm over minutes to hours (Gmail defers a cold domain's
+      // first bulk send). Analytics is the source of truth for delivery.
       setCastMsg(
         r.failedBatches
-          ? `Sent to ${r.sent} of ${r.recipients}. ${r.failedBatches} batch(es) failed — check Resend.`
-          : `✓ Sent to all ${r.sent} subscribers.`
+          ? `Handed ${r.sent} of ${r.recipients} to Resend. ${r.failedBatches} batch(es) failed — check Resend.`
+          : `✓ All ${r.sent} accepted by Resend. Delivery confirms over the next few hours — watch Analytics for the real count.`
       );
       setCastPreview(null);
       router.refresh();
