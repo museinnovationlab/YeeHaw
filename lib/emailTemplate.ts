@@ -44,22 +44,15 @@ ${[400, 700, 800]
 @font-face{font-family:'Space Mono';font-style:normal;font-weight:700;mso-font-alt:'Courier New';src:url(https://fonts.gstatic.com/s/spacemono/v17/i7dMIFZifjKcF5UAWdDRaPpZUFWaHi6WZ3Q.woff2) format('woff2');}`;
 
 // Gmail can't load Bungee, so its headings fall back to a plain bold sans and
-// lose the squared, signage-like quality that actually reads as YeeHaw. What
-// carries that look isn't the weight — it's Bungee's small-caps lowercase. So
-// for Gmail only, we approximate it with uppercase + a little tracking.
-//
-// Scoped via the documented Gmail hack: Gmail rewrites the doctype into a <u>
-// element next to the body wrapper, so `u + .body` matches in Gmail and nowhere
-// else. That scoping matters — applying uppercase globally would flatten Apple
-// Mail's real Bungee from its cap/small-cap rhythm into uniform caps, a
-// downgrade for the ~65% who see the genuine font.
-//
-// This leans on a Gmail implementation detail and could stop matching if Google
-// changes their markup. The failure mode is deliberately benign: the rule
-// simply stops applying and Gmail renders exactly as it does today.
-const GMAIL_CAPS = `  u + .body .yh-title,
-  u + .body .yh-body h2,
-  u + .body .yh-body h3 { text-transform: uppercase; letter-spacing: 0.02em; }`;
+// lose the squared, signage-like quality that reads as YeeHaw. Uppercase gets
+// that back, and it can be applied unconditionally: Bungee is a caps-only face
+// whose lowercase codepoints map to the same capital glyphs, so this is a
+// measured no-op wherever the real font loads ("pop stars" and "POP STARS"
+// render at identical width and height). Clients with Bungee are untouched;
+// clients without it get the caps.
+const HEADING_CAPS = `  .yh-title,
+  .yh-body h2,
+  .yh-body h3 { text-transform: uppercase; }`;
 
 // Brand art, served absolutely from the live site (email needs full URLs).
 const LOGO = `${SITE_URL}/brand/parts/logos/logo-primary.png`;
@@ -152,10 +145,10 @@ ${FONT_FACES}
   .yh-body img { max-width: 100%; height: auto; border-radius: 10px; border: 2px solid ${INK}; }
   .yh-body ul, .yh-body ol { padding-left: 1.2em; }
   .yh-body hr { border: none; border-top: 3px solid ${PINK}; margin: 1.8em 0; }
-${GMAIL_CAPS}
+${HEADING_CAPS}
 </style>
 </head>
-<body class="body" style="margin:0;padding:0;background:${CREAM};">
+<body style="margin:0;padding:0;background:${CREAM};">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader)}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};padding:24px 12px;">
     <tr><td align="center">
