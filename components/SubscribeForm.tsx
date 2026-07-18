@@ -11,6 +11,8 @@ export default function SubscribeForm() {
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Honeypot — hidden from people, filled in by naive bots. See /api/subscribe.
+  const [website, setWebsite] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,14 +23,16 @@ export default function SubscribeForm() {
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, website }),
       });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
         throw new Error(
           b.error === "invalid_email"
             ? "That email doesn't look right."
-            : "Something went wrong — try again?"
+            : b.error === "rate_limited"
+              ? "That's a lot of signups from one place. Try again in a bit."
+              : "Something went wrong — try again?"
         );
       }
       setDone(true);
@@ -63,6 +67,20 @@ export default function SubscribeForm() {
           placeholder="your@email.com"
           className="font-mono w-full rounded-full border-2 border-ink bg-cream px-5 py-3 text-ink outline-none placeholder:text-ink/40 focus:ring-4 focus:ring-purple/40"
         />
+        {/* Honeypot. aria-hidden + tabIndex -1 keeps it away from screen readers
+            and keyboard users; only a bot filling every field will touch it. */}
+        <div className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
+          <label htmlFor="website">Leave this field empty</label>
+          <input
+            id="website"
+            name="website"
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+          />
+        </div>
         <button
           type="submit"
           disabled={busy}
