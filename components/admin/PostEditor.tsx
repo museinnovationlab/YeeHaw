@@ -43,6 +43,49 @@ function field(label: string, el: React.ReactNode, hint?: string) {
   );
 }
 
+type AiFieldKey =
+  | "title"
+  | "dek"
+  | "seoTitle"
+  | "seoDescription"
+  | "emailSubject"
+  | "emailPreviewText";
+
+/**
+ * Same as field(), plus a small button that regenerates just this one value
+ * from the post body. Not a <label> — a label click would be forwarded to the
+ * button instead of the input.
+ */
+function aiField(
+  label: string,
+  el: React.ReactNode,
+  onGenerate: () => void,
+  busy: boolean,
+  disabled: boolean
+) {
+  return (
+    <div className="block">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-xs uppercase tracking-wide text-ink/60">{label}</span>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={busy || disabled}
+          title={
+            disabled
+              ? "Write some body copy first — the suggestion is based on the post"
+              : `Generate a new ${label.toLowerCase()}`
+          }
+          className="font-mono shrink-0 rounded-full border-2 border-ink bg-cream px-2 py-0.5 text-[10px] uppercase tracking-wide text-ink transition-colors hover:bg-yellow disabled:opacity-30"
+        >
+          {busy ? "…" : "✨ Generate"}
+        </button>
+      </div>
+      {el}
+    </div>
+  );
+}
+
 const inputClass =
   "mt-1 w-full rounded-lg border-2 border-ink bg-cream px-3 py-2 text-ink outline-none focus:ring-2 focus:ring-purple/40";
 
@@ -83,6 +126,8 @@ export default function PostEditor({ post }: { post: Post | null }) {
   // Default to the non-destructive mode so an accidental generate can't wipe a
   // draft in progress; "replace" stays one click away for a from-scratch draft.
   const [aiMode, setAiMode] = useState<"replace" | "append">("append");
+  // Which single metadata field is currently regenerating (null = none).
+  const [aiFieldBusy, setAiFieldBusy] = useState<AiFieldKey | null>(null);
   const [editorKey, setEditorKey] = useState(0); // bump to reload editor content
   const [w2wBusy, setW2wBusy] = useState(false);
   const [testTo, setTestTo] = useState("");
@@ -133,11 +178,16 @@ export default function PostEditor({ post }: { post: Post | null }) {
     if (!aiNotes.trim()) return;
     setAiBusy(true);
     setAiError(null);
+    // On an empty post there's nothing to append to and nothing to destroy, so
+    // run a full draft regardless of the toggle — that's the only mode that
+    // also fills in title/dek/SEO/email metadata.
+    const isEmpty = !bodyHtml.replace(/<[^>]+>/g, "").trim();
+    const mode = isEmpty ? "replace" : aiMode;
     try {
       const res = await fetch("/api/ai/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: aiNotes, theme: title, postType, mode: aiMode }),
+        body: JSON.stringify({ notes: aiNotes, theme: title, postType, mode }),
       });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
@@ -151,12 +201,12 @@ export default function PostEditor({ post }: { post: Post | null }) {
       if (draft.bodyHtml) {
         // append mode adds to the existing body; replace mode swaps it out
         setBodyHtml((prev) =>
-          aiMode === "append" && prev ? `${prev}\n${draft.bodyHtml}` : draft.bodyHtml
+          mode === "append" && prev ? `${prev}\n${draft.bodyHtml}` : draft.bodyHtml
         );
         setEditorKey((k) => k + 1); // reload the editor with the new content
       }
       // only fill metadata on a full draft (append returns empty metadata)
-      if (aiMode === "replace") {
+      if (mode === "replace") {
         if (draft.title && !title) setTitle(draft.title);
         if (draft.dek && !dek) setDek(draft.dek);
         if (draft.seoTitle && !seoTitle) setSeoTitle(draft.seoTitle);
@@ -172,6 +222,64 @@ export default function PostEditor({ post }: { post: Post | null }) {
       setAiBusy(false);
     }
   }
+
+  const FIELD_SETTERS: Record<AiFieldKey, (v: string) => void> = {
+    title: setTitle,
+    dek: setDek,
+    seoTitle: setSeoTitle,
+    seoDescription: setSeoDescription,
+    emailSubject: setEmailSubject,
+    emailPreviewText: setEmailPreviewText,
+  };
+  const FIELD_VALUES: Record<AiFieldKey, string> = {
+    title,
+    dek,
+    seoTitle,
+    seoDescription,
+    emailSubject,
+    emailPreviewText,
+  };
+
+  /** Regenerate one metadata field from the current post body. */
+  async function regenerateField(key: AiFieldKey) {
+    if (aiFieldBusy) return;
+    setAiFieldBusy(key);
+    setAiError(null);
+    try {
+      const res = await fetch("/api/ai/field", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          field: key,
+          title,
+          dek,
+          bodyHtml,
+          // Sending the current value asks for a different option, so clicking
+          // again gives a fresh take rather than the same line back.
+          current: FIELD_VALUES[key],
+        }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        throw new Error(
+          b.error === "ai_not_configured"
+            ? "AI isn't configured (add ANTHROPIC_API_KEY)."
+            : b.error === "no_content"
+              ? "Add a title or some body copy first — suggestions are based on the post."
+              : "Couldn't generate that field."
+        );
+      }
+      const { value } = await res.json();
+      if (value) FIELD_SETTERS[key](value);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Couldn't generate that field.");
+    } finally {
+      setAiFieldBusy(null);
+    }
+  }
+
+  // Suggestions are derived from the post, so there must be something to read.
+  const canSuggest = Boolean(bodyHtml.replace(/<[^>]+>/g, "").trim() || title.trim());
 
   async function onPickFeatured(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -275,14 +383,17 @@ export default function PostEditor({ post }: { post: Post | null }) {
           placeholder="Post title"
           className="font-heading w-full rounded-lg border-2 border-ink bg-cream px-4 py-3 text-2xl text-ink outline-none focus:ring-2 focus:ring-purple/40"
         />
-        {field(
+        {aiField(
           "Dek (one-line summary, shown on cards)",
           <textarea
             value={dek}
             onChange={(e) => setDek(e.target.value)}
             rows={2}
             className={inputClass}
-          />
+          />,
+          () => regenerateField("dek"),
+          aiFieldBusy === "dek",
+          !canSuggest
         )}
         {/* NOTE: the editor must NOT be wrapped in a <label> — label clicks get
             redirected to the first toolbar button. Use a plain div. */}
@@ -433,10 +544,34 @@ export default function PostEditor({ post }: { post: Post | null }) {
             SEO &amp; email fields
           </summary>
           <div className="mt-4 flex flex-col gap-3">
-            {field("SEO title", <input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} className={inputClass} />)}
-            {field("SEO description", <textarea value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} rows={2} className={inputClass} />)}
-            {field("Email subject", <input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} className={inputClass} />)}
-            {field("Email preview text", <input value={emailPreviewText} onChange={(e) => setEmailPreviewText(e.target.value)} className={inputClass} />)}
+            {aiField(
+              "SEO title",
+              <input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} className={inputClass} />,
+              () => regenerateField("seoTitle"),
+              aiFieldBusy === "seoTitle",
+              !canSuggest
+            )}
+            {aiField(
+              "SEO description",
+              <textarea value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} rows={2} className={inputClass} />,
+              () => regenerateField("seoDescription"),
+              aiFieldBusy === "seoDescription",
+              !canSuggest
+            )}
+            {aiField(
+              "Email subject",
+              <input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} className={inputClass} />,
+              () => regenerateField("emailSubject"),
+              aiFieldBusy === "emailSubject",
+              !canSuggest
+            )}
+            {aiField(
+              "Email preview text",
+              <input value={emailPreviewText} onChange={(e) => setEmailPreviewText(e.target.value)} className={inputClass} />,
+              () => regenerateField("emailPreviewText"),
+              aiFieldBusy === "emailPreviewText",
+              !canSuggest
+            )}
           </div>
         </details>
       </div>

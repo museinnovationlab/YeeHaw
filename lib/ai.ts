@@ -223,3 +223,99 @@ export async function generateDraft(input: {
   result.bodyHtml = substituteImages(deAiify(result.bodyHtml), links);
   return result;
 }
+
+/** Metadata fields that can be regenerated one at a time from the editor. */
+export type FieldKey =
+  | "title"
+  | "dek"
+  | "seoTitle"
+  | "seoDescription"
+  | "emailSubject"
+  | "emailPreviewText";
+
+const FIELD_BRIEFS: Record<FieldKey, string> = {
+  title: "a short, catchy post title",
+  dek: "a one-sentence summary for the post card (about 20 words)",
+  seoTitle: "an SEO title of roughly 55 characters",
+  seoDescription: "a meta description of roughly 150 characters",
+  emailSubject: "a catchy email subject line, under 60 characters",
+  emailPreviewText: "a one-line inbox preview teaser that complements the subject",
+};
+
+/** Strip HTML to plain text for prompting, capped so we don't ship a novel. */
+function htmlToText(html: string, cap = 4000): string {
+  return html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, cap);
+}
+
+/**
+ * Regenerate a single metadata field from the post that already exists.
+ * Passing `current` asks for a genuinely different alternative, so clicking
+ * the button repeatedly gives fresh options instead of the same line back.
+ */
+export async function generateField(input: {
+  field: FieldKey;
+  title?: string;
+  dek?: string;
+  bodyHtml?: string;
+  current?: string;
+}): Promise<string> {
+  if (!isAiConfigured) throw new Error("AI is not configured (ANTHROPIC_API_KEY missing).");
+
+  const brief = FIELD_BRIEFS[input.field];
+  const bodyText = htmlToText(input.bodyHtml || "");
+  if (!bodyText && !input.title) throw new Error("Nothing to work from yet.");
+
+  const samples = await voiceSamples();
+  const userMsg = [
+    samples
+      ? `VOICE SAMPLES — how I actually write. Match this tone and rhythm (don't reuse the content):\n${samples}\n`
+      : "",
+    input.title ? `POST TITLE: ${input.title}` : "",
+    input.dek && input.field !== "dek" ? `POST DEK: ${input.dek}` : "",
+    bodyText ? `POST BODY:\n${bodyText}` : "",
+    "",
+    `TASK: Write ${brief} for this post.`,
+    input.current
+      ? `I already have this version, so give me a clearly DIFFERENT alternative, not a reword:\n"${input.current}"`
+      : "",
+    "Return ONLY the line itself. No quotes around it, no label, no explanation, no markdown.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    signal: AbortSignal.timeout(60_000),
+    headers: {
+      "x-api-key": KEY as string,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 300,
+      // Higher temperature so repeat clicks actually vary.
+      temperature: 1,
+      system: HOUSE_STYLE,
+      messages: [{ role: "user", content: userMsg }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Anthropic API ${res.status}: ${err.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const raw: string = data.content?.[0]?.text ?? "";
+  // Models like to wrap a one-liner in quotes despite being told not to.
+  return deAiify(raw.trim().replace(/^["'“”]+|["'“”]+$/g, "").trim());
+}
