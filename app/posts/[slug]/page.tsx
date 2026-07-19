@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import SubscribeCta from "@/components/SubscribeCta";
 import AffiliateDisclosure from "@/components/AffiliateDisclosure";
 import Sticker from "@/components/Sticker";
 import PostStamps from "@/components/PostStamps";
@@ -110,6 +111,8 @@ export default async function PostPage({
         </div>
 
         {post.hasAffiliateLinks && <AffiliateDisclosure />}
+
+        <SubscribeCta />
 
         <div className="mt-12 border-t-2 border-ink/10 pt-6">
           <a

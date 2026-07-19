@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import SubscribeCta from "@/components/SubscribeCta";
 import Sticker from "@/components/Sticker";
 import { stamps, type StampKey } from "@/lib/brand";
 import { formatDateLong } from "@/lib/format";
@@ -54,6 +55,11 @@ export default async function ArchivePage() {
             </li>
           ))}
         </ul>
+
+        <SubscribeCta
+          heading="Never miss one"
+          blurb="A new mixtape lands in your inbox — weird finds, useful ideas, and good little detours. Free, and easy to leave anytime."
+        />
       </section>
 
       <SiteFooter />
