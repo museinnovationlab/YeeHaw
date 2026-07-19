@@ -382,10 +382,13 @@ export default function PostEditor({ post }: { post: Post | null }) {
         setSlug(res.slug);
         setStatus(effectiveStatus);
         setSavedAt(new Date().toLocaleTimeString());
-        // Cross-post only on the transition INTO published, and only if the
-        // toggle is on. postToBlueskyAction is claim-guarded, so a repeat save
-        // of an already-published post can't double-post either way.
-        if (effectiveStatus === "published" && bskyEnabled && !post?.bskyPostedAt) {
+        // Cross-post ONLY on the transition into published — not on every save
+        // of an already-live post, or editing a typo would fire a social post.
+        // For an already-published issue, the explicit "Post to Bluesky now"
+        // button is the path. (postToBlueskyAction is claim-guarded regardless.)
+        const justPublished =
+          effectiveStatus === "published" && post?.status !== "published";
+        if (justPublished && bskyEnabled && !post?.bskyPostedAt) {
           await crossPost(res.id);
         }
         if (!post && res.id) {
