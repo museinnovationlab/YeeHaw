@@ -177,6 +177,23 @@ ${HEADING_CAPS}
           <div class="yh-body">${body}</div>
         </td></tr>
 
+        <!-- the ask: forward it on. Deliberately FIRST and lighter-weight than
+             the box below, because most readers are already subscribers — for
+             them this is the only relevant call to action, and forwards are
+             what actually grow a small list. Plain text with a mailto so it
+             works even where images are blocked. -->
+        <tr><td style="padding:0 28px 20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:3px dashed ${INK};border-bottom:3px dashed ${INK};">
+            <tr><td align="center" style="padding:18px 12px;">
+              <div style="font-family:${FONT_HEADING};font-size:16px;color:${INK};margin-bottom:6px;">Know someone who'd like this?</div>
+              <div style="font-family:${FONT_BODY};font-size:15px;line-height:1.5;color:${INK};opacity:0.8;">
+                Forward it along. That's genuinely how YeeHaw grows —
+                <a href="mailto:?subject=${encodeURIComponent(`You'd like this: ${subject}`)}&body=${encodeURIComponent(`Thought of you. ${postUrl}`)}" style="color:${PURPLE};font-weight:bold;text-decoration:none;">send it to one person</a>.
+              </div>
+            </td></tr>
+          </table>
+        </td></tr>
+
         <!-- forward-to-subscribe CTA -->
         <tr><td style="padding:0 28px 28px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E2F7FB;border:2px solid ${INK};border-radius:16px;">
