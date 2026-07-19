@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { timingSafeEqual } from "node:crypto";
-import { publishDueScheduledPosts } from "@/lib/repo/posts";
+import {
+  publishDueScheduledPosts,
+  getPostById,
+  claimBlueskyPost,
+  releaseBlueskyPost,
+  recordBlueskyUrl,
+} from "@/lib/repo/posts";
+import { postToBluesky, isBlueskyConfigured } from "@/lib/bluesky";
+import { generateShareBlurb } from "@/lib/ai";
+import { SITE_URL } from "@/lib/site";
 
 // Publishes scheduled posts whose time has come. Triggered by a scheduler
 // (Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` automatically; an
@@ -31,8 +40,39 @@ async function handle(req: NextRequest) {
     revalidatePath("/");
     revalidatePath("/archive");
     for (const p of published) revalidatePath(`/posts/${p.slug}`);
-    // TODO(email): when Resend lands, send the broadcast here for each newly
-    // published post, guarded by emailSentAt so it only ever fires once.
+
+    // Cross-post scheduled issues as they go live. Claim-guarded, so a cron
+    // retry can't double-post. The email broadcast stays MANUAL on purpose —
+    // it has no undo, so it always waits for an explicit click.
+    if (isBlueskyConfigured) {
+      for (const p of published) {
+        try {
+          const post = await getPostById(p.id);
+          if (!post || post.bskyEnabled === false || post.importedFromArchive) continue;
+          if (post.bskyPostedAt) continue;
+          if (!(await claimBlueskyPost(p.id))) continue;
+          const url = `${SITE_URL}/posts/${post.slug}`;
+          const blurb = await generateShareBlurb({
+            platform: "bluesky",
+            title: post.title,
+            dek: post.dek,
+            bodyHtml: post.bodyHtml,
+          }).catch(() => post.dek || post.title);
+          const r = await postToBluesky({
+            text: `${blurb}\n\n${url}`,
+            url,
+            title: post.title,
+            description: post.dek,
+            imageUrl: post.featuredImageUrl,
+          });
+          if (r.url) await recordBlueskyUrl(p.id, r.url);
+          else await releaseBlueskyPost(p.id);
+        } catch (e) {
+          console.error("cron bluesky post failed:", e);
+          await releaseBlueskyPost(p.id).catch(() => {});
+        }
+      }
+    }
   }
 
   return NextResponse.json({

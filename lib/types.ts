@@ -79,6 +79,12 @@ export interface Post {
   /** how many messages Resend accepted for this issue — the denominator that
    *  makes "delivered" meaningful (delivery confirms over hours, not instantly) */
   emailRecipients?: number;
+  /** set once posted to Bluesky, so republishing never double-posts */
+  bskyPostedAt?: string;
+  /** permalink to the Bluesky post, for the editor to link to */
+  bskyUrl?: string;
+  /** author's intent: cross-post when this goes live (default on) */
+  bskyEnabled?: boolean;
 }
 
 /** A future recommendation idea the user has stashed for an eventual post. */

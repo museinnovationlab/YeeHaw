@@ -224,6 +224,99 @@ export async function generateDraft(input: {
   return result;
 }
 
+export type SharePlatform = "bluesky" | "threads" | "twitter" | "instagram";
+
+/** Per-platform limits and framing. Bluesky's cap must leave room for the URL. */
+const SHARE_SPECS: Record<SharePlatform, { limit: number; brief: string }> = {
+  bluesky: {
+    limit: 220,
+    brief:
+      "a Bluesky post. Casual and curious, like telling a friend what's in this issue. No hashtags.",
+  },
+  threads: {
+    limit: 480,
+    brief:
+      "a Threads post. Conversational, a little playful, can run slightly longer. At most one hashtag, only if it genuinely fits.",
+  },
+  twitter: {
+    limit: 240,
+    brief:
+      "an X/Twitter post. Punchy and tight, front-load the most interesting item. No hashtags.",
+  },
+  instagram: {
+    limit: 600,
+    brief:
+      "an Instagram caption. Warmer and more visual, can use a couple of line breaks. End by pointing at the link in bio. Up to 3 relevant hashtags at the very end.",
+  },
+};
+
+/**
+ * Draft a share blurb for one platform. Deliberately returns text only — the
+ * URL is appended by the caller so we never depend on the model reproducing a
+ * link correctly (and so Bluesky's facet byte-offsets stay predictable).
+ */
+export async function generateShareBlurb(input: {
+  platform: SharePlatform;
+  title: string;
+  dek?: string;
+  bodyHtml?: string;
+}): Promise<string> {
+  if (!isAiConfigured) throw new Error("AI is not configured (ANTHROPIC_API_KEY missing).");
+  const spec = SHARE_SPECS[input.platform];
+  const bodyText = htmlToText(input.bodyHtml || "", 3000);
+
+  const samples = await voiceSamples();
+  const userMsg = [
+    samples
+      ? `VOICE SAMPLES — how I actually write. Match this tone (don't reuse the content):\n${samples}\n`
+      : "",
+    `POST TITLE: ${input.title}`,
+    input.dek ? `POST DEK: ${input.dek}` : "",
+    bodyText ? `POST BODY:\n${bodyText}` : "",
+    "",
+    `TASK: Write ${spec.brief}`,
+    `HARD LIMIT: ${spec.limit} characters. Shorter is better.`,
+    "Do NOT include a URL — the link is added automatically afterwards.",
+    "Tease what's actually in the issue; name a specific item or two rather than saying 'a new issue is out'.",
+    "Return ONLY the post text. No quotes around it, no label, no options, no markdown.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    signal: AbortSignal.timeout(60_000),
+    headers: {
+      "x-api-key": KEY as string,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 500,
+      temperature: 1,
+      system: HOUSE_STYLE,
+      messages: [{ role: "user", content: userMsg }],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Anthropic API ${res.status}: ${err.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const raw: string = data.content?.[0]?.text ?? "";
+  let out = deAiify(raw.trim().replace(/^["'“”]+|["'“”]+$/g, "").trim());
+  // The model overshoots the limit often enough to need a hard trim; cut on a
+  // word boundary so we never end mid-word.
+  if (out.length > spec.limit) {
+    out = out.slice(0, spec.limit);
+    const cut = out.lastIndexOf(" ");
+    if (cut > spec.limit * 0.6) out = out.slice(0, cut);
+    out = out.replace(/[,;:\s]+$/, "");
+  }
+  return out;
+}
+
 /** Metadata fields that can be regenerated one at a time from the editor. */
 export type FieldKey =
   | "title"

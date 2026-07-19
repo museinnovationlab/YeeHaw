@@ -41,6 +41,8 @@ export interface PostInput {
   scheduledFor?: string;
   importedFromArchive?: boolean;
   hasAffiliateLinks?: boolean;
+  /** author's intent to cross-post to Bluesky when this goes live */
+  bskyEnabled?: boolean;
 }
 
 /** Fetch any post by id (any status) for editing. */
@@ -78,6 +80,9 @@ export async function savePost(input: PostInput): Promise<{ id: string; slug: st
     categories: input.categories ?? [],
     importedFromArchive: input.importedFromArchive ?? false,
     hasAffiliateLinks: input.hasAffiliateLinks ?? false,
+    // Default ON: the author cross-posts nearly every issue, so the toggle is
+    // opt-OUT. Only an explicit false suppresses it.
+    bskyEnabled: input.bskyEnabled !== false,
     updatedAt: now,
   };
   if (input.publishedAt) data.publishedAt = new Date(input.publishedAt);
@@ -192,7 +197,41 @@ function toPost(id: string, data: Record<string, unknown>): Post {
     emailSentAt: iso(data.emailSentAt),
     emailRecipients:
       typeof data.emailRecipients === "number" ? data.emailRecipients : undefined,
+    bskyPostedAt: iso(data.bskyPostedAt),
+    bskyUrl: (data.bskyUrl as string) || undefined,
+    bskyEnabled:
+      typeof data.bskyEnabled === "boolean" ? data.bskyEnabled : undefined,
   };
+}
+
+/**
+ * Claim the right to cross-post, atomically — same reasoning as
+ * claimEmailSend. Republishing or a double click must never double-post.
+ */
+export async function claimBlueskyPost(id: string): Promise<boolean> {
+  if (!isFirebaseAdminConfigured) return false;
+  const ref = adminDb().collection(COLLECTION).doc(id);
+  return adminDb().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error("Post not found.");
+    if (snap.data()?.bskyPostedAt) return false;
+    tx.update(ref, { bskyPostedAt: FieldValue.serverTimestamp() });
+    return true;
+  });
+}
+
+/** Release a Bluesky claim when the post failed, so it can be retried. */
+export async function releaseBlueskyPost(id: string): Promise<void> {
+  if (!isFirebaseAdminConfigured) return;
+  await adminDb().collection(COLLECTION).doc(id).update({
+    bskyPostedAt: FieldValue.delete(),
+  });
+}
+
+/** Store the permalink after a successful cross-post. */
+export async function recordBlueskyUrl(id: string, url: string): Promise<void> {
+  if (!isFirebaseAdminConfigured) return;
+  await adminDb().collection(COLLECTION).doc(id).update({ bskyUrl: url });
 }
 
 /** Record how many messages Resend accepted, so Analytics has a denominator. */

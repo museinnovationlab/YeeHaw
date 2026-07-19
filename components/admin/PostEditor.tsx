@@ -10,7 +10,10 @@ import {
   sendTestEmailAction,
   getBroadcastPreviewAction,
   broadcastPostAction,
+  postToBlueskyAction,
+  generateShareKitAction,
   type BroadcastPreview,
+  type ShareKit,
 } from "@/app/admin/(dash)/posts/actions";
 import {
   getUnusedStashAction,
@@ -141,6 +144,47 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [castBusy, setCastBusy] = useState(false);
   const [castMsg, setCastMsg] = useState<string | null>(null);
   const [castConfirmText, setCastConfirmText] = useState("");
+  // Cross-posting. Default ON — nearly every issue goes to Bluesky, so the
+  // toggle is opt-OUT and lives right next to the publish button.
+  const [bskyEnabled, setBskyEnabled] = useState(post?.bskyEnabled !== false);
+  const [bskyMsg, setBskyMsg] = useState<string | null>(null);
+  const [bskyBusy, setBskyBusy] = useState(false);
+  const [kit, setKit] = useState<ShareKit | null>(null);
+  const [kitBusy, setKitBusy] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  async function crossPost(id: string) {
+    setBskyBusy(true);
+    setBskyMsg(null);
+    try {
+      const r = await postToBlueskyAction(id);
+      if (r.url) setBskyMsg(`✓ Posted to Bluesky`);
+      else if (r.skipped) setBskyMsg(r.skipped);
+      else setBskyMsg(r.error || "Bluesky post failed.");
+    } catch (e) {
+      setBskyMsg(e instanceof Error ? e.message : "Bluesky post failed.");
+    } finally {
+      setBskyBusy(false);
+    }
+  }
+
+  function buildKit() {
+    if (!savedId || kitBusy) return;
+    setKitBusy(true);
+    startTransition(async () => {
+      try {
+        setKit(await generateShareKitAction(savedId));
+      } finally {
+        setKitBusy(false);
+      }
+    });
+  }
+
+  function copy(key: string, text: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 1500);
+  }
 
   // stash picker
   const [stashItems, setStashItems] = useState<StashItem[]>([]);
@@ -332,11 +376,18 @@ export default function PostEditor({ post }: { post: Post | null }) {
           seoDescription,
           emailSubject,
           emailPreviewText,
+          bskyEnabled,
         });
         setSavedId(res.id);
         setSlug(res.slug);
         setStatus(effectiveStatus);
         setSavedAt(new Date().toLocaleTimeString());
+        // Cross-post only on the transition INTO published, and only if the
+        // toggle is on. postToBlueskyAction is claim-guarded, so a repeat save
+        // of an already-published post can't double-post either way.
+        if (effectiveStatus === "published" && bskyEnabled && !post?.bskyPostedAt) {
+          await crossPost(res.id);
+        }
         if (!post && res.id) {
           // first save of a new post → move to its edit URL
           router.replace(`/admin/posts/${res.id}`);
@@ -646,6 +697,24 @@ export default function PostEditor({ post }: { post: Post | null }) {
 
         {showSchedule && status !== "published" && (
           <div className="flex flex-col gap-2 rounded-xl border-2 border-ink/40 bg-cream p-3">
+            {/* Opt-OUT cross-post toggle, deliberately in the publish flow so
+                the choice is visible at the moment it takes effect. */}
+            <label className="flex cursor-pointer items-start gap-2 rounded-lg border-2 border-cyan/60 bg-cyan/10 p-2">
+              <input
+                type="checkbox"
+                checked={bskyEnabled}
+                onChange={(e) => setBskyEnabled(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-purple"
+              />
+              <span className="font-mono text-[11px] leading-snug text-ink">
+                Also post to Bluesky
+                <span className="block text-[10px] text-ink/50">
+                  {bskyEnabled
+                    ? "Posts a link card when this goes live."
+                    : "Off — nothing will be cross-posted."}
+                </span>
+              </span>
+            </label>
             <button
               onClick={() => {
                 setShowSchedule(false);
@@ -877,6 +946,84 @@ export default function PostEditor({ post }: { post: Post | null }) {
             {castMsg && <p className="font-mono mt-2 text-[11px] text-ink/70">{castMsg}</p>}
           </div>
         )}
+        {/* Bluesky status + the copy-paste share kit for platforms with no
+            usable API (Substack has none, X charges, Meta needs review). */}
+        {savedId && (
+          <div className="rounded-xl border-2 border-ink/20 bg-cream p-3">
+            <p className="font-mono text-[11px] uppercase tracking-wide text-ink/60">
+              Share kit
+            </p>
+
+            {post?.bskyPostedAt ? (
+              <p className="font-mono mt-1 text-[10px] text-ink/50">
+                ✓ On Bluesky{" "}
+                {post.bskyUrl && (
+                  <a
+                    href={post.bskyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-purple underline hover:text-pink"
+                  >
+                    view post ↗
+                  </a>
+                )}
+              </p>
+            ) : status === "published" ? (
+              <button
+                type="button"
+                onClick={() => savedId && crossPost(savedId)}
+                disabled={bskyBusy || pending}
+                className="font-mono mt-2 w-full rounded-full border-2 border-ink bg-cream px-3 py-1.5 text-[10px] uppercase tracking-wide hover:bg-cyan disabled:opacity-40"
+              >
+                {bskyBusy ? "Posting…" : "Post to Bluesky now"}
+              </button>
+            ) : (
+              <p className="font-mono mt-1 text-[10px] text-ink/40">
+                Bluesky posts when you publish (toggle is in Publish ▾).
+              </p>
+            )}
+            {bskyMsg && <p className="font-mono mt-1 text-[10px] text-ink/70">{bskyMsg}</p>}
+
+            <button
+              type="button"
+              onClick={buildKit}
+              disabled={kitBusy || pending || !title}
+              className="font-mono mt-2 w-full rounded-full border-2 border-ink bg-cream px-3 py-1.5 text-[10px] uppercase tracking-wide hover:bg-yellow disabled:opacity-40"
+            >
+              {kitBusy ? "Writing…" : kit ? "Regenerate blurbs" : "✨ Draft share posts"}
+            </button>
+
+            {kit && (
+              <div className="mt-2 flex flex-col gap-2">
+                {([
+                  ["threads", "Threads"],
+                  ["twitter", "X / Twitter"],
+                  ["instagram", "Instagram"],
+                  ["substack", "Substack (markdown)"],
+                ] as const).map(([key, label]) => (
+                  <div key={key} className="rounded-lg border-2 border-ink/30 bg-cream p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[10px] uppercase tracking-wide text-ink/60">
+                        {label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => copy(key, kit[key])}
+                        className="font-mono shrink-0 rounded-full border-2 border-ink/60 bg-cream px-2 py-0.5 text-[9px] uppercase hover:bg-yellow"
+                      >
+                        {copied === key ? "copied ✓" : "copy"}
+                      </button>
+                    </div>
+                    <p className="font-mono mt-1 max-h-28 overflow-y-auto whitespace-pre-wrap text-[11px] leading-snug text-ink/70">
+                      {kit[key] || "—"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {savedId && (
           <div className="mt-2 border-t-2 border-ink/10 pt-3">
             <DeletePostButton

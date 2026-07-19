@@ -9,6 +9,9 @@ import {
   claimEmailSend,
   releaseEmailSend,
   recordEmailRecipients,
+  claimBlueskyPost,
+  releaseBlueskyPost,
+  recordBlueskyUrl,
   type PostInput,
 } from "@/lib/repo/posts";
 import { getWeekendPicks, renderWhatToWatchHtml, isTmdbConfigured } from "@/lib/tmdb";
@@ -16,6 +19,9 @@ import { sendEmail, sendBatch, isEmailConfigured, BATCH_MAX, type BatchEmail } f
 import { renderPostEmail } from "@/lib/emailTemplate";
 import { unsubscribeUrl, listUnsubscribeHeaders } from "@/lib/unsubscribe";
 import { getSubscribedRecipients } from "@/lib/repo/subscribers";
+import { postToBluesky, isBlueskyConfigured } from "@/lib/bluesky";
+import { generateShareBlurb, type SharePlatform } from "@/lib/ai";
+import { SITE_URL } from "@/lib/site";
 
 export async function savePostAction(input: PostInput): Promise<{ id: string; slug: string }> {
   // Server actions are callable endpoints — always re-check auth here.
@@ -195,6 +201,117 @@ export async function broadcastPostAction(
 
   revalidatePath("/admin");
   return { sent, failedBatches, recipients: recipients.length };
+}
+
+/**
+ * Cross-post a published issue to Bluesky.
+ *
+ * Claim-before-post (same reasoning as the broadcast): republishing, a double
+ * click, or the cron re-running must never produce two posts. If the post
+ * itself fails, the claim is released so it can be retried.
+ */
+export async function postToBlueskyAction(
+  postId: string,
+  blurbOverride?: string
+): Promise<{ url?: string; skipped?: string; error?: string }> {
+  const user = await getAdminUser();
+  if (!user) throw new Error("Unauthorized");
+  if (!isBlueskyConfigured) return { skipped: "Bluesky isn't configured." };
+
+  const post = await getPostById(postId);
+  if (!post) throw new Error("Save the post first.");
+  if (post.status !== "published") return { skipped: "Publish the post first." };
+  if (post.importedFromArchive) return { skipped: "Archive imports aren't cross-posted." };
+  if (post.bskyPostedAt) return { skipped: "Already posted to Bluesky." };
+
+  const claimed = await claimBlueskyPost(postId);
+  if (!claimed) return { skipped: "Already posted to Bluesky." };
+
+  try {
+    const url = `${SITE_URL}/posts/${post.slug}`;
+    const blurb =
+      blurbOverride?.trim() ||
+      (await generateShareBlurb({
+        platform: "bluesky",
+        title: post.title,
+        dek: post.dek,
+        bodyHtml: post.bodyHtml,
+      }).catch(() => post.dek || post.title));
+
+    const res = await postToBluesky({
+      text: `${blurb}\n\n${url}`,
+      url,
+      title: post.title,
+      description: post.dek,
+      imageUrl: post.featuredImageUrl,
+    });
+    if (res.error || !res.url) {
+      await releaseBlueskyPost(postId);
+      return { error: res.error || "Bluesky post failed." };
+    }
+    await recordBlueskyUrl(postId, res.url);
+    revalidatePath("/admin");
+    return { url: res.url };
+  } catch (e) {
+    await releaseBlueskyPost(postId);
+    return { error: e instanceof Error ? e.message : "Bluesky post failed." };
+  }
+}
+
+export type ShareKit = Record<SharePlatform | "substack", string>;
+
+/**
+ * Draft share copy for the platforms that have no usable posting API —
+ * Substack has none at all, X charges for write access, and Threads and
+ * Instagram require a business account plus Meta app review. Copy-paste is the
+ * honest answer for those, so make the copy good.
+ */
+export async function generateShareKitAction(postId: string): Promise<ShareKit> {
+  const user = await getAdminUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const post = await getPostById(postId);
+  if (!post) throw new Error("Save the post first.");
+  const url = `${SITE_URL}/posts/${post.slug}`;
+  const base = { title: post.title, dek: post.dek, bodyHtml: post.bodyHtml };
+
+  const platforms: SharePlatform[] = ["threads", "twitter", "instagram"];
+  const blurbs = await Promise.all(
+    platforms.map((platform) =>
+      generateShareBlurb({ platform, ...base })
+        .then((text) => ({ platform, text }))
+        .catch(() => ({ platform, text: "" }))
+    )
+  );
+
+  const kit = { substack: post.substackMarkdown || htmlToMarkdown(post.bodyHtml || "") } as ShareKit;
+  for (const b of blurbs) {
+    // Instagram can't have a clickable link in the caption, so don't paste one.
+    kit[b.platform] = b.platform === "instagram" ? b.text : `${b.text}\n\n${url}`;
+  }
+  kit.bluesky = "";
+  return kit;
+}
+
+/** Minimal HTML -> Markdown for the Substack paste. */
+function htmlToMarkdown(html: string): string {
+  return html
+    .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "\n## $1\n")
+    .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "\n### $1\n")
+    .replace(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)")
+    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, "**$1**")
+    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, "_$1_")
+    .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "- $1\n")
+    .replace(/<img[^>]*src="([^"]+)"[^>]*>/gi, "\n![]($1)\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<hr[^>]*>/gi, "\n---\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** Permanently delete a post. */
