@@ -63,10 +63,23 @@ export function linkFacets(text: string, url: string): unknown[] {
   ];
 }
 
-/** Cloudinary can hand us a smaller derivative; other hosts we take as-is. */
+/**
+ * Reshape a Cloudinary image into a social link card.
+ *
+ * Cards render at roughly 1.91:1, so a 512x144 banner or a square logo gets
+ * squeezed. c_pad fits the WHOLE image into 1200x630 rather than cropping it —
+ * right call here because featured images are often logos and brand objects,
+ * where c_fill would slice the artwork in half.
+ *
+ * The cream background matters twice over: it makes the padding look
+ * deliberate rather than like letterboxing, AND it fills the transparency in
+ * PNG logos, which otherwise flatten to BLACK when converted to JPG.
+ */
+const CARD_TRANSFORM = "c_pad,w_1200,h_630,b_rgb:FFF3D6,q_auto,f_jpg";
+
 function thumbUrl(url: string): string {
   return url.includes("/upload/")
-    ? url.replace("/upload/", "/upload/c_limit,w_1200,q_auto,f_jpg/")
+    ? url.replace("/upload/", `/upload/${CARD_TRANSFORM}/`)
     : url;
 }
 
