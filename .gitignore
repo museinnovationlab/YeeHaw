@@ -23,6 +23,12 @@ yarn-error.log*
 .env
 .env*.local
 
+# secrets / service-account keys — never commit these
+*firebase-adminsdk*.json
+*serviceAccount*.json
+*-service-account*.json
+*.pem
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
