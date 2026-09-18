@@ -187,6 +187,16 @@ body {
 .yh-prose iframe[data-spotify="152"] {
   height: 152px;
 }
+/* EDITOR ONLY. The public site gives Spotify no frame (see above), but an
+   iframe that hasn't loaded yet is then invisible whitespace — the author
+   inserts an embed, sees a blank gap, and assumes it failed. A dashed outline
+   keeps the block visible and selectable while Spotify's card loads.
+   .ProseMirror is the Tiptap content root and never appears on public pages. */
+.ProseMirror iframe[data-spotify] {
+  outline: 2px dashed var(--color-ink);
+  outline-offset: -2px;
+  background: rgba(23, 20, 31, 0.06);
+}
 .yh-prose figure {
   margin: 1.5em 0;
   text-align: center;
