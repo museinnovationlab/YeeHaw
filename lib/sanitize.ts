@@ -29,14 +29,19 @@ export function cleanHtml(dirty: string): string {
         "allowfullscreen",
         "referrerpolicy",
         "title",
+        "loading",
+        // Spotify player height (352 track-list / 152 compact) — lets the site
+        // CSS opt these out of the 16:9 rule that video iframes get.
+        "data-spotify",
       ],
     },
-    // Only allow iframes pointing at known video hosts.
+    // Only allow iframes pointing at known embed hosts.
     allowedIframeHostnames: [
       "www.youtube.com",
       "youtube.com",
       "www.youtube-nocookie.com",
       "player.vimeo.com",
+      "open.spotify.com",
     ],
     allowedSchemes: ["http", "https", "mailto"],
     transformTags: {

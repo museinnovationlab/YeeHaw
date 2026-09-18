@@ -8,6 +8,7 @@ import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import Youtube from "@tiptap/extension-youtube";
 import { Vimeo, vimeoEmbedSrc } from "./VimeoNode";
+import { Spotify, spotifyEmbed } from "./SpotifyNode";
 import { useCallback, useRef, useState } from "react";
 
 /** Upload a file to the admin image endpoint, return its URL. */
@@ -98,6 +99,17 @@ function Toolbar({ editor }: { editor: Editor }) {
     editor.chain().focus().insertContent({ type: "vimeo", attrs: { src } }).run();
   }, [editor]);
 
+  const addSpotify = useCallback(() => {
+    const url = window.prompt("Spotify link (playlist, album, track, artist, show, or episode)");
+    if (!url) return;
+    const embed = spotifyEmbed(url);
+    if (!embed) {
+      window.alert("That doesn't look like a Spotify link. Paste the share URL from Spotify.");
+      return;
+    }
+    editor.chain().focus().insertContent({ type: "spotify", attrs: embed }).run();
+  }, [editor]);
+
   const setLink = useCallback(() => {
     const prev = editor.getAttributes("link").href as string | undefined;
     const url = window.prompt("Link URL", prev ?? "https://");
@@ -173,6 +185,9 @@ function Toolbar({ editor }: { editor: Editor }) {
       <Btn title="Vimeo video" onClick={addVimeo}>
         🎬
       </Btn>
+      <Btn title="Spotify playlist / track" onClick={addSpotify}>
+        🎵
+      </Btn>
       <input
         ref={fileRef}
         type="file"
@@ -208,6 +223,7 @@ export default function RichTextEditor({
       Image.configure({ inline: false, allowBase64: false }),
       Youtube.configure({ nocookie: true, controls: true, modestBranding: true, width: 640, height: 360 }),
       Vimeo,
+      Spotify,
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder }),
     ],

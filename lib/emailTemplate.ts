@@ -83,6 +83,14 @@ function emailifyBody(html: string, seed: string): string {
       return `<p><a href="${esc(watch)}" style="color:${PURPLE};font-weight:bold;">▶ Watch the video</a></p>`;
     }
   );
+  // Spotify embeds -> "listen" links. Must run BEFORE the generic iframe rule
+  // below, or a playlist would be labelled "Watch the video". Links to the
+  // public page (open.spotify.com/playlist/...), not the /embed/ player URL.
+  out = out.replace(
+    /<iframe[^>]*\ssrc="https:\/\/open\.spotify\.com\/embed\/([a-z]+)\/([A-Za-z0-9]+)[^"]*"[^>]*>\s*<\/iframe>/gi,
+    (_m, type: string, id: string) =>
+      `<p><a href="https://open.spotify.com/${esc(type)}/${esc(id)}" style="color:${PURPLE};font-weight:bold;">🎵 Listen on Spotify</a></p>`
+  );
   out = out.replace(
     /<iframe[^>]*\ssrc="([^"]+)"[^>]*>\s*<\/iframe>/gi,
     (_m, src: string) => `<p><a href="${esc(src)}" style="color:${PURPLE};font-weight:bold;">▶ Watch the video</a></p>`

@@ -168,6 +168,25 @@ body {
   border-radius: 0.75rem;
   border: 2px solid var(--color-ink);
 }
+/* Spotify player is a fixed-height widget, not 16:9 — opt it out and honor
+   the height the node set (352 = with track list, 152 = compact).
+   NO ink border here, unlike video: Spotify's card is self-styled (dark,
+   rounded) and its rendered height varies — in cookie-blocked browsers
+   (Safari by default) it falls back to a shorter "Preview" card. With a
+   border, that short card would sit inside a visibly empty box; without one,
+   the leftover frame space is just invisible whitespace. */
+.yh-prose iframe[data-spotify] {
+  aspect-ratio: auto;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+}
+.yh-prose iframe[data-spotify="352"] {
+  height: 352px;
+}
+.yh-prose iframe[data-spotify="152"] {
+  height: 152px;
+}
 .yh-prose figure {
   margin: 1.5em 0;
   text-align: center;
