@@ -6,16 +6,15 @@ import {
   savePost,
   deletePost,
   getPostById,
-  claimEmailSend,
-  releaseEmailSend,
-  recordEmailRecipients,
   claimBlueskyPost,
   releaseBlueskyPost,
   recordBlueskyUrl,
+  setScheduledSend,
   type PostInput,
 } from "@/lib/repo/posts";
+import { broadcastPost } from "@/lib/broadcast";
 import { getWeekendPicks, renderWhatToWatchHtml, isTmdbConfigured } from "@/lib/tmdb";
-import { sendEmail, sendBatch, isEmailConfigured, BATCH_MAX, DAILY_LIMIT, type BatchEmail } from "@/lib/email";
+import { sendEmail, isEmailConfigured, DAILY_LIMIT } from "@/lib/email";
 import { renderPostEmail } from "@/lib/emailTemplate";
 import { resolveEmailEmbeds } from "@/lib/emailEmbeds";
 import { unsubscribeUrl, listUnsubscribeHeaders } from "@/lib/unsubscribe";
@@ -120,113 +119,36 @@ export async function getBroadcastPreviewAction(postId: string): Promise<Broadca
   };
 }
 
-/**
- * Send a published post to the whole subscriber list.
- *
- * Safety model, in order:
- *  - admin auth, post must exist and be published
- *  - claimEmailSend() atomically sets emailSentAt BEFORE sending, so a double
- *    click or retry can't mail anyone twice
- *  - recipients come from getSubscribedRecipients(), which excludes
- *    unsubscribed, bounced and complained addresses
- *  - each message is rendered per-recipient for a personalized unsubscribe
- *    link/header, and tagged post:<slug> so analytics attributes it
- *  - if the very first batch fails outright, the claim is released so you can
- *    fix the problem and retry
- */
+/** Send a published post to the whole list — see lib/broadcast.ts for the rails. */
 export async function broadcastPostAction(
   postId: string
 ): Promise<{ sent: number; failedBatches: number; recipients: number }> {
   const user = await getAdminUser();
   if (!user) throw new Error("Unauthorized");
-  if (!isEmailConfigured) throw new Error("Email isn't configured (RESEND_API_KEY).");
-
   const post = await getPostById(postId);
   if (!post) throw new Error("Save the post first.");
-  if (post.status !== "published") {
-    throw new Error("Publish the post before sending it to subscribers.");
-  }
-  // Backfilled Squarespace issues are published but decades old and carry no
-  // emailSentAt, so without this they'd look perfectly sendable.
-  if (post.importedFromArchive) {
-    throw new Error("This is a backfilled archive issue — it can't be broadcast.");
-  }
-
-  const recipients = await getSubscribedRecipients();
-  if (!recipients.length) throw new Error("No active subscribers to send to.");
-
-  // Refuse a send the plan can't complete, BEFORE claiming. Resend's free tier
-  // caps at 100/day; beyond that the first batch would go out, the rest would
-  // be rejected, and emailSentAt would already be set — an unresumable
-  // partial send. Staggering across days is deliberately not attempted: a
-  // newsletter arriving on different days for different readers is worse
-  // than a clear "upgrade first" stop.
-  if (DAILY_LIMIT > 0 && recipients.length > DAILY_LIMIT) {
-    throw new Error(
-      `This would send ${recipients.length} emails but the Resend plan allows ${DAILY_LIMIT}/day. ` +
-        `Nothing was sent. Upgrade the Resend plan, then set RESEND_DAILY_LIMIT=0 in Vercel.`
-    );
-  }
-
-  // Claim first — see claimEmailSend. Losing the race means someone/something
-  // already sent this issue.
-  const claimed = await claimEmailSend(postId);
-  if (!claimed) {
-    throw new Error("This issue has already been sent to subscribers.");
-  }
-
-  // Resolve embeds once for the whole list (thumbnail fetches are per post,
-  // never per recipient).
-  const emailPost = { ...post, bodyHtml: await resolveEmailEmbeds(post.bodyHtml ?? "") };
-
-  const messages: BatchEmail[] = recipients.map((to) => {
-    const { subject, html } = renderPostEmail(emailPost, {
-      unsubscribeUrl: unsubscribeUrl(to, post.slug),
-    });
-    return {
-      to,
-      subject,
-      html,
-      headers: listUnsubscribeHeaders(to, post.slug),
-      tags: [{ name: "post", value: post.slug }],
-    };
-  });
-
-  let sent = 0;
-  let failedBatches = 0;
-  for (let i = 0; i < messages.length; i += BATCH_MAX) {
-    const chunk = messages.slice(i, i + BATCH_MAX);
-    const res = await sendBatch(chunk);
-    if (res.error) {
-      failedBatches += 1;
-      console.error("broadcast batch failed:", res.error);
-      // Nothing went out at all — let the user fix and retry.
-      if (i === 0 && sent === 0) {
-        await releaseEmailSend(postId);
-        throw new Error(`Send failed, nothing went out: ${res.error}`);
-      }
-    } else {
-      // Count what Resend actually ACCEPTED (one id per message), not what we
-      // handed it. These matched on the first real send, but assuming they
-      // always match would silently hide a partial batch.
-      const accepted = res.ids.length || chunk.length;
-      if (res.ids.length && res.ids.length !== chunk.length) {
-        console.error(
-          `broadcast: submitted ${chunk.length} but Resend accepted ${res.ids.length}`
-        );
-      }
-      sent += accepted;
-    }
-    // Resend allows 10 req/s per team; pause between chunks to stay clear.
-    if (i + BATCH_MAX < messages.length) await new Promise((r) => setTimeout(r, 500));
-  }
-
-  // Store the accepted count so Analytics can show delivered-out-of-N and make
-  // the "still confirming" gap visible instead of a mystery.
-  await recordEmailRecipients(postId, sent).catch(() => {});
-
+  const result = await broadcastPost(post);
   revalidatePath("/admin");
-  return { sent, failedBatches, recipients: recipients.length };
+  return result;
+}
+
+/**
+ * Schedule (or cancel, with null) the broadcast for an already-published post.
+ * The cron fires it within ~15 minutes of the time. Unpublished posts set
+ * their send time through the schedule flow in save() instead.
+ */
+export async function scheduleSendAction(postId: string, whenIso: string | null): Promise<void> {
+  const user = await getAdminUser();
+  if (!user) throw new Error("Unauthorized");
+  const post = await getPostById(postId);
+  if (!post) throw new Error("Save the post first.");
+  if (whenIso) {
+    if (post.emailSentAt) throw new Error("This issue has already been sent.");
+    if (post.status !== "published") throw new Error("Publish the post first, or schedule the send when you schedule the post.");
+    if (new Date(whenIso).getTime() < Date.now() - 60_000) throw new Error("Pick a time in the future.");
+  }
+  await setScheduledSend(postId, whenIso);
+  revalidatePath("/admin");
 }
 
 /**

@@ -85,6 +85,12 @@ export interface Post {
   bskyUrl?: string;
   /** author's intent: cross-post when this goes live (default on) */
   bskyEnabled?: boolean;
+  /** send the broadcast the moment a SCHEDULED post publishes (cron) */
+  emailOnPublish?: boolean;
+  /** ISO — send the broadcast at this time (cron); the post must be published by then */
+  emailScheduledFor?: string;
+  /** why a scheduled send didn't go (e.g. over the daily cap); cleared on success */
+  emailScheduleError?: string;
 }
 
 /** A future recommendation idea the user has stashed for an eventual post. */

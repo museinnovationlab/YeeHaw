@@ -43,6 +43,9 @@ export interface PostInput {
   hasAffiliateLinks?: boolean;
   /** author's intent to cross-post to Bluesky when this goes live */
   bskyEnabled?: boolean;
+  /** email scheduling. undefined = leave as is; null clears. */
+  emailOnPublish?: boolean;
+  emailScheduledFor?: string | null;
 }
 
 /** Fetch any post by id (any status) for editing. */
@@ -90,6 +93,22 @@ export async function savePost(input: PostInput): Promise<{ id: string; slug: st
   if (input.status === "scheduled" && input.scheduledFor) {
     data.scheduledFor = new Date(input.scheduledFor);
   }
+  // Email scheduling — only touched when the caller says so. Clears use
+  // FieldValue.delete(), which Firestore only accepts on an UPDATE — so they
+  // go on the existing-doc branch below, never into add().
+  const clears: Record<string, unknown> = {};
+  if (input.emailOnPublish !== undefined) data.emailOnPublish = input.emailOnPublish;
+  if (input.emailScheduledFor === null) {
+    clears.emailScheduledFor = FieldValue.delete();
+  } else if (input.emailScheduledFor) {
+    const when = new Date(input.emailScheduledFor);
+    // A send can't precede the publish it depends on.
+    if (input.status === "scheduled" && input.scheduledFor && when < new Date(input.scheduledFor)) {
+      throw new Error("The email can't go out before the post publishes.");
+    }
+    data.emailScheduledFor = when;
+    clears.emailScheduleError = FieldValue.delete();
+  }
 
   if (input.id) {
     const ref = db.collection(COLLECTION).doc(input.id);
@@ -100,7 +119,7 @@ export async function savePost(input: PostInput): Promise<{ id: string; slug: st
     }
     // Leaving the scheduled state clears the pending time.
     if (input.status !== "scheduled") data.scheduledFor = FieldValue.delete();
-    await ref.set(data, { merge: true });
+    await ref.set({ ...data, ...clears }, { merge: true });
     return { id: input.id, slug };
   }
 
@@ -201,7 +220,51 @@ function toPost(id: string, data: Record<string, unknown>): Post {
     bskyUrl: (data.bskyUrl as string) || undefined,
     bskyEnabled:
       typeof data.bskyEnabled === "boolean" ? data.bskyEnabled : undefined,
+    emailOnPublish:
+      typeof data.emailOnPublish === "boolean" ? data.emailOnPublish : undefined,
+    emailScheduledFor: iso(data.emailScheduledFor),
+    emailScheduleError: (data.emailScheduleError as string) || undefined,
   };
+}
+
+/**
+ * Published posts whose scheduled send time has arrived and that haven't been
+ * sent. Only ever returns PUBLISHED posts, so a send can never run ahead of
+ * the publish it depends on, whatever the stored times say.
+ */
+export async function getDueScheduledSends(): Promise<Post[]> {
+  if (!isFirebaseAdminConfigured) return [];
+  const now = Date.now();
+  const snap = await adminDb().collection(COLLECTION).where("status", "==", "published").get();
+  return snap.docs
+    .map((d) => toPost(d.id, d.data() as Record<string, unknown>))
+    .filter(
+      (p) =>
+        p.emailScheduledFor &&
+        !p.emailSentAt &&
+        !p.importedFromArchive &&
+        new Date(p.emailScheduledFor).getTime() <= now
+    );
+}
+
+/** Set or clear a scheduled send on an existing post (published-post panel). */
+export async function setScheduledSend(id: string, whenIso: string | null): Promise<void> {
+  if (!isFirebaseAdminConfigured) return;
+  await adminDb().collection(COLLECTION).doc(id).update(
+    whenIso
+      ? { emailScheduledFor: new Date(whenIso), emailScheduleError: FieldValue.delete() }
+      : { emailScheduledFor: FieldValue.delete(), emailOnPublish: false }
+  );
+}
+
+/** A scheduled send failed; stop retrying and leave a reason for the editor. */
+export async function recordScheduleError(id: string, message: string): Promise<void> {
+  if (!isFirebaseAdminConfigured) return;
+  await adminDb().collection(COLLECTION).doc(id).update({
+    emailScheduledFor: FieldValue.delete(),
+    emailOnPublish: false,
+    emailScheduleError: message.slice(0, 300),
+  });
 }
 
 /**

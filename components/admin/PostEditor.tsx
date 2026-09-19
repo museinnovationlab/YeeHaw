@@ -12,6 +12,7 @@ import {
   broadcastPostAction,
   postToBlueskyAction,
   generateShareKitAction,
+  scheduleSendAction,
   type BroadcastPreview,
   type ShareKit,
 } from "@/app/admin/(dash)/posts/actions";
@@ -123,6 +124,36 @@ export default function PostEditor({ post }: { post: Post | null }) {
     post?.scheduledFor ? toLocalDatetime(post.scheduledFor) : ""
   );
   const [bodyHtml, setBodyHtml] = useState(post?.bodyHtml ?? "");
+  // Email scheduling. "manual" = the author clicks Send later; "onPublish" =
+  // the cron sends the moment a scheduled post goes live; "at" = a separate
+  // time (must not precede the publish time — validated server-side too).
+  type EmailMode = "manual" | "onPublish" | "at";
+  const [emailMode, setEmailMode] = useState<EmailMode>(
+    post?.emailOnPublish ? "onPublish" : post?.emailScheduledFor ? "at" : "manual"
+  );
+  const [emailAt, setEmailAt] = useState(
+    post?.emailScheduledFor ? toLocalDatetime(post.emailScheduledFor) : ""
+  );
+  // datetime-local inputs are silently in the browser's zone; say which one.
+  // Resolved after mount: the server would render UTC and mismatch on hydrate.
+  const [tz, setTz] = useState("");
+  useEffect(() => {
+    try {
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const abbr = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" })
+        .formatToParts(new Date())
+        .find((p) => p.type === "timeZoneName")?.value;
+      setTz(abbr ? `${zone} (${abbr})` : zone);
+    } catch {
+      setTz("your local time zone");
+    }
+  }, []);
+  const fmtWhen = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, {
+      weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    });
+  const emailAtBeforePublish =
+    emailMode === "at" && !!emailAt && !!scheduleAt && new Date(emailAt) < new Date(scheduleAt);
   const [publishDate, setPublishDate] = useState(
     post?.publishedAt ? post.publishedAt.slice(0, 10) : ""
   );
@@ -151,6 +182,24 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [castBusy, setCastBusy] = useState(false);
   const [castMsg, setCastMsg] = useState<string | null>(null);
   const [castConfirmText, setCastConfirmText] = useState("");
+  const [sendAt, setSendAt] = useState("");
+  const [sendSchedBusy, setSendSchedBusy] = useState(false);
+
+  async function scheduleSend(whenIso: string | null) {
+    if (!savedId || sendSchedBusy) return;
+    setSendSchedBusy(true);
+    setCastMsg(null);
+    try {
+      await scheduleSendAction(savedId, whenIso);
+      setCastMsg(whenIso ? `⏳ Scheduled — sends ${fmtWhen(whenIso)}` : "Scheduled send cancelled.");
+      setSendAt("");
+      router.refresh();
+    } catch (e) {
+      setCastMsg(e instanceof Error ? e.message : "Couldn't schedule the send.");
+    } finally {
+      setSendSchedBusy(false);
+    }
+  }
   // Cross-posting. Default ON — nearly every issue goes to Bluesky, so the
   // toggle is opt-OUT and lives right next to the publish button.
   const [bskyEnabled, setBskyEnabled] = useState(post?.bskyEnabled !== false);
@@ -364,6 +413,7 @@ export default function PostEditor({ post }: { post: Post | null }) {
     return JSON.stringify([
       title, slug, postType, dek, stamp, bodyHtml, featuredImageUrl, publishDate,
       scheduleAt, seoTitle, seoDescription, emailSubject, emailPreviewText, bskyEnabled,
+      emailMode, emailAt,
     ]);
   }
 
@@ -421,6 +471,14 @@ export default function PostEditor({ post }: { post: Post | null }) {
           emailSubject,
           emailPreviewText,
           bskyEnabled,
+          // Only the schedule flow decides the email plan; a plain save of a
+          // published post must not clobber a send scheduled from the sidebar.
+          ...(effectiveStatus === "scheduled"
+            ? {
+                emailOnPublish: emailMode === "onPublish",
+                emailScheduledFor: emailMode === "at" && emailAt ? new Date(emailAt).toISOString() : null,
+              }
+            : {}),
         });
         setSavedId(res.id);
         setSlug(res.slug);
@@ -783,12 +841,59 @@ export default function PostEditor({ post }: { post: Post | null }) {
               onChange={(e) => setScheduleAt(e.target.value)}
               className={inputClass}
             />
+            {tz && <p className="font-mono -mt-1 text-[10px] text-ink/40">Times are in {tz}</p>}
+
+            {/* Email plan for a scheduled post. Default is manual: the send is
+                irreversible, so automating it is an explicit choice. */}
+            <div className="rounded-lg border-2 border-pink/60 bg-pink/5 p-2">
+              <p className="font-mono mb-1 text-[10px] uppercase tracking-wide text-ink/60">
+                Email subscribers
+              </p>
+              {(
+                [
+                  ["manual", "Not automatically — I'll send it myself"],
+                  ["onPublish", "The moment it publishes"],
+                  ["at", "At a specific time"],
+                ] as const
+              ).map(([mode, label]) => (
+                <label key={mode} className="flex cursor-pointer items-center gap-2 py-0.5 font-mono text-[11px] text-ink">
+                  <input
+                    type="radio"
+                    name="emailMode"
+                    checked={emailMode === mode}
+                    onChange={() => setEmailMode(mode)}
+                    className="h-3.5 w-3.5 accent-purple"
+                  />
+                  {label}
+                </label>
+              ))}
+              {emailMode === "at" && (
+                <div className="mt-1">
+                  <input
+                    type="datetime-local"
+                    value={emailAt}
+                    min={scheduleAt || undefined}
+                    onChange={(e) => setEmailAt(e.target.value)}
+                    className={`${inputClass} text-sm`}
+                  />
+                  {tz && <p className="font-mono mt-1 text-[10px] text-ink/40">Times are in {tz}</p>}
+                  {emailAtBeforePublish && (
+                    <p className="font-mono mt-1 text-[10px] text-pink">
+                      The email can't go out before the post publishes.
+                    </p>
+                  )}
+                </div>
+              )}
+              <p className="font-mono mt-1 text-[10px] text-ink/40">
+                Automatic sends fire within ~15 min of the time (the scheduler runs every 15 min).
+              </p>
+            </div>
             <button
               onClick={() => {
                 setShowSchedule(false);
                 save("scheduled");
               }}
-              disabled={pending || !title || !scheduleAt}
+              disabled={pending || !title || !scheduleAt || emailAtBeforePublish || (emailMode === "at" && !emailAt)}
               className="font-heading yh-shadow-sm rounded-full border-2 border-ink bg-cyan px-4 py-2 text-sm text-ink transition-transform hover:-translate-y-0.5 disabled:opacity-50"
             >
               Schedule ⏳
@@ -798,7 +903,15 @@ export default function PostEditor({ post }: { post: Post | null }) {
 
         {status === "scheduled" && scheduleAt && (
           <p className="font-mono rounded-lg border-2 border-cyan bg-cyan/10 px-3 py-2 text-xs text-ink">
-            ⏳ Scheduled for {new Date(scheduleAt).toLocaleString()} — editable until then.
+            ⏳ Publishes {fmtWhen(new Date(scheduleAt).toISOString())} — editable until then.
+            <span className="block text-ink/60">
+              Email:{" "}
+              {emailMode === "onPublish"
+                ? "sends the moment it publishes"
+                : emailMode === "at" && emailAt
+                  ? `sends ${fmtWhen(new Date(emailAt).toISOString())}`
+                  : "manual — nothing goes out until you click Send"}
+            </span>
           </p>
         )}
         {/* Publishing and broadcasting are separate on purpose — a send has no
@@ -951,8 +1064,30 @@ export default function PostEditor({ post }: { post: Post | null }) {
               <p className="font-mono mt-1 text-[10px] text-ink/40">
                 Publish the post first, then you can send it to the list.
               </p>
+            ) : post?.emailScheduledFor ? (
+              <div className="mt-2 rounded-lg border-2 border-cyan bg-cyan/10 p-2">
+                <p className="font-mono text-[11px] text-ink">
+                  ⏳ Sends <strong>{fmtWhen(post.emailScheduledFor)}</strong>
+                </p>
+                <p className="font-mono mt-0.5 text-[10px] text-ink/50">
+                  Fires within ~15 min of that time. Cancel to send manually instead.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => scheduleSend(null)}
+                  disabled={sendSchedBusy}
+                  className="font-mono mt-2 rounded-full border-2 border-ink bg-cream px-3 py-1 text-[10px] uppercase hover:bg-yellow disabled:opacity-50"
+                >
+                  {sendSchedBusy ? "…" : "Cancel scheduled send"}
+                </button>
+              </div>
             ) : !castPreview ? (
               <>
+                {post?.emailScheduleError && (
+                  <p className="font-mono mt-2 rounded-lg border-2 border-orange bg-orange/10 px-2 py-1.5 text-[10px] text-ink">
+                    ⚠️ The scheduled send didn&apos;t go: {post.emailScheduleError}
+                  </p>
+                )}
                 <p className="font-mono mt-1 text-[10px] text-ink/40">
                   Sends the saved version to every active subscriber. There is no undo.
                 </p>
@@ -963,6 +1098,24 @@ export default function PostEditor({ post }: { post: Post | null }) {
                   className="font-heading yh-shadow-sm mt-2 w-full rounded-full border-2 border-ink bg-pink px-4 py-2 text-sm text-cream transition-transform hover:-translate-y-0.5 disabled:opacity-50"
                 >
                   {castBusy ? "Checking…" : "Send to subscribers ▶"}
+                </button>
+                <div className="font-mono mt-2 text-center text-[10px] uppercase tracking-wide text-ink/40">
+                  — or schedule for later —
+                </div>
+                <input
+                  type="datetime-local"
+                  value={sendAt}
+                  onChange={(e) => setSendAt(e.target.value)}
+                  className={`${inputClass} text-sm`}
+                />
+                {tz && <p className="font-mono mt-1 text-[10px] text-ink/40">Times are in {tz}</p>}
+                <button
+                  type="button"
+                  onClick={() => sendAt && scheduleSend(new Date(sendAt).toISOString())}
+                  disabled={sendSchedBusy || !sendAt}
+                  className="font-heading yh-shadow-sm mt-2 w-full rounded-full border-2 border-ink bg-cyan px-4 py-2 text-sm text-ink transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+                >
+                  {sendSchedBusy ? "Scheduling…" : "Schedule send ⏳"}
                 </button>
               </>
             ) : (

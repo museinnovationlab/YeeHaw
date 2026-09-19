@@ -7,7 +7,11 @@ import {
   claimBlueskyPost,
   releaseBlueskyPost,
   recordBlueskyUrl,
+  getDueScheduledSends,
+  recordScheduleError,
 } from "@/lib/repo/posts";
+import { broadcastPost } from "@/lib/broadcast";
+import type { Post } from "@/lib/types";
 import { postToBluesky, isBlueskyConfigured } from "@/lib/bluesky";
 import { generateShareBlurb } from "@/lib/ai";
 import { SITE_URL } from "@/lib/site";
@@ -75,10 +79,40 @@ async function handle(req: NextRequest) {
     }
   }
 
+  // Scheduled email sends, strictly AFTER publishing so a send can never run
+  // ahead of the publish it depends on. Two sources:
+  //  1. posts that just published with "email when it publishes" ticked
+  //  2. published posts whose separate send time has arrived
+  // broadcastPost() carries all the rails (claim-before-send, quota guard,
+  // suppression). A failure is recorded on the post and the schedule cleared —
+  // retrying an over-quota send every 15 minutes would never succeed, and the
+  // editor shows the reason so the author can send manually.
+  const emailed: string[] = [];
+  const emailFailed: string[] = [];
+  async function trySend(post: Post) {
+    if (post.emailSentAt) return;
+    try {
+      await broadcastPost(post);
+      emailed.push(post.slug);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "send failed";
+      console.error(`cron broadcast failed for ${post.slug}:`, msg);
+      await recordScheduleError(post.id, msg).catch(() => {});
+      emailFailed.push(post.slug);
+    }
+  }
+  for (const p of published) {
+    const post = await getPostById(p.id);
+    if (post?.emailOnPublish) await trySend(post);
+  }
+  for (const post of await getDueScheduledSends()) await trySend(post);
+
   return NextResponse.json({
     ok: true,
     published: published.length,
     slugs: published.map((p) => p.slug),
+    emailed,
+    emailFailed,
   });
 }
 
