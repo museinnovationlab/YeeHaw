@@ -26,6 +26,12 @@ const FONT_HEADING = `'Bungee', ${FONT_FALLBACK}`;
 const FONT_BODY = `'Atkinson Hyperlegible', ${FONT_FALLBACK}`;
 const FONT_MONO = `'Space Mono', ui-monospace, 'Courier New', monospace`;
 
+// Shared with lib/emailEmbeds.ts so embed cards match the rest of the email.
+export const EMAIL_STYLE = {
+  CREAM, INK, PINK, CYAN, YELLOW, PURPLE, FONT_BODY, FONT_HEADING, FONT_MONO,
+} as const;
+export { esc as escapeHtml };
+
 const BUNGEE_SRC =
   "https://fonts.gstatic.com/s/bungee/v17/N0bU2SZBIuF2PU_0DXR1C9zfmQ.woff2";
 
@@ -93,9 +99,19 @@ function emailifyBody(html: string, seed: string): string {
   );
   out = out.replace(
     /<iframe[^>]*\ssrc="([^"]+)"[^>]*>\s*<\/iframe>/gi,
-    (_m, src: string) => `<p><a href="${esc(src)}" style="color:${PURPLE};font-weight:bold;">▶ Watch the video</a></p>`
+    (_m, src: string) => {
+      // A bare YouTube embed src points at the player page; send readers to
+      // the normal watch page instead.
+      const href = /youtube(?:-nocookie)?\.com\/embed\//.test(src)
+        ? src.replace("www.youtube-nocookie.com", "www.youtube.com").replace("/embed/", "/watch?v=")
+        : src;
+      return `<p><a href="${esc(href)}" style="color:${PURPLE};font-weight:bold;">▶ Watch the video</a></p>`;
+    }
   );
-  out = out.replace(/<img /gi, '<img style="max-width:100%;height:auto;border-radius:10px;border:2px solid #17141F;" ');
+  // Author images carry no style (the sanitizer strips it) so they get the
+  // frame; embed cards from lib/emailEmbeds.ts bring their own and are skipped
+  // (a second style attr would silently win over theirs).
+  out = out.replace(/<img (?![^>]*\bstyle=)/gi, '<img style="max-width:100%;height:auto;border-radius:10px;border:2px solid #17141F;" ');
 
   // Section breaks: a decoration hangs on each <hr>, alternating side; art is
   // a seeded 60/40 mix of mini-objects vs stamps (shared with the web).

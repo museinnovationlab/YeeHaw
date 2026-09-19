@@ -17,6 +17,7 @@ import {
 import { getWeekendPicks, renderWhatToWatchHtml, isTmdbConfigured } from "@/lib/tmdb";
 import { sendEmail, sendBatch, isEmailConfigured, BATCH_MAX, type BatchEmail } from "@/lib/email";
 import { renderPostEmail } from "@/lib/emailTemplate";
+import { resolveEmailEmbeds } from "@/lib/emailEmbeds";
 import { unsubscribeUrl, listUnsubscribeHeaders } from "@/lib/unsubscribe";
 import { getSubscribedRecipients } from "@/lib/repo/subscribers";
 import { postToBluesky, isBlueskyConfigured } from "@/lib/bluesky";
@@ -61,11 +62,14 @@ export async function sendTestEmailAction(
   const unique = [...new Set(recipients)].slice(0, 5);
   if (!unique.length) throw new Error("Enter at least one valid email address.");
 
+  // Resolve video/Spotify embeds into image cards ONCE, not per recipient.
+  const emailPost = { ...post, bodyHtml: await resolveEmailEmbeds(post.bodyHtml ?? "") };
+
   let sent = 0;
   const failed: { to: string; error: string }[] = [];
   for (const to of unique) {
     // Render per-recipient so the unsubscribe link/header is personalized.
-    const { subject, html } = renderPostEmail(post, {
+    const { subject, html } = renderPostEmail(emailPost, {
       unsubscribeUrl: unsubscribeUrl(to, post.slug),
     });
     const r = await sendEmail({
@@ -153,8 +157,12 @@ export async function broadcastPostAction(
     throw new Error("This issue has already been sent to subscribers.");
   }
 
+  // Resolve embeds once for the whole list (thumbnail fetches are per post,
+  // never per recipient).
+  const emailPost = { ...post, bodyHtml: await resolveEmailEmbeds(post.bodyHtml ?? "") };
+
   const messages: BatchEmail[] = recipients.map((to) => {
-    const { subject, html } = renderPostEmail(post, {
+    const { subject, html } = renderPostEmail(emailPost, {
       unsubscribeUrl: unsubscribeUrl(to, post.slug),
     });
     return {
