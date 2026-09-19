@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import RichTextEditor from "./RichTextEditor";
 import DeletePostButton from "./DeletePostButton";
@@ -101,6 +101,13 @@ export default function PostEditor({ post }: { post: Post | null }) {
   const [savedId, setSavedId] = useState<string | null>(post?.id ?? null);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [savedVia, setSavedVia] = useState<"manual" | "auto">("manual");
+  // Autosave: opt-in checkbox, remembered per browser. Only runs for unpublished
+  // posts — you don't want half-typed edits to a LIVE issue going out every
+  // 30 seconds — and only when something actually changed since the last save.
+  const AUTOSAVE_MS = 30_000;
+  const [autosave, setAutosave] = useState(true);
+  const lastSavedSig = useRef<string | null>(null);
 
   const [title, setTitle] = useState(post?.title ?? "");
   const [slug, setSlug] = useState(post?.slug ?? "");
@@ -352,9 +359,46 @@ export default function PostEditor({ post }: { post: Post | null }) {
     }
   }
 
-  function save(nextStatus?: PostStatus) {
+  /** Everything save() persists, as one string — cheap "did anything change?" */
+  function fingerprint(): string {
+    return JSON.stringify([
+      title, slug, postType, dek, stamp, bodyHtml, featuredImageUrl, publishDate,
+      scheduleAt, seoTitle, seoDescription, emailSubject, emailPreviewText, bskyEnabled,
+    ]);
+  }
+
+  // Remember the toggle per browser (localStorage can be unavailable/private).
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("yh:autosave");
+      if (v !== null) setAutosave(v === "1");
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("yh:autosave", autosave ? "1" : "0"); } catch {}
+  }, [autosave]);
+
+  // The autosave tick. Gated so it can never surprise you:
+  //  - off for published posts (edits to a live issue stay manual)
+  //  - only after the first manual save (a brand-new post's first save
+  //    navigates to its edit URL, which mid-typing would be jarring)
+  //  - only if something changed, nothing is in flight, and no error is showing
+  //    (a failed save — e.g. a deploy landed — shouldn't retry every 30s)
+  useEffect(() => {
+    if (!autosave || status === "published" || !savedId) return;
+    const t = setInterval(() => {
+      if (pending || error || !title.trim()) return;
+      if (fingerprint() === lastSavedSig.current) return;
+      save(undefined, "auto");
+    }, AUTOSAVE_MS);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autosave, status, savedId, pending, error, title, slug, postType, dek, stamp, bodyHtml, featuredImageUrl, publishDate, scheduleAt, seoTitle, seoDescription, emailSubject, emailPreviewText, bskyEnabled]);
+
+  function save(nextStatus?: PostStatus, via: "manual" | "auto" = "manual") {
     setError(null);
     const effectiveStatus = nextStatus ?? status;
+    const sig = fingerprint();
     startTransition(async () => {
       try {
         const res = await savePostAction({
@@ -382,6 +426,8 @@ export default function PostEditor({ post }: { post: Post | null }) {
         setSlug(res.slug);
         setStatus(effectiveStatus);
         setSavedAt(new Date().toLocaleTimeString());
+        setSavedVia(via);
+        lastSavedSig.current = sig;
         // Cross-post ONLY on the transition into published — not on every save
         // of an already-live post, or editing a typo would fire a social post.
         // For an already-published issue, the explicit "Post to Bluesky now"
@@ -763,8 +809,22 @@ export default function PostEditor({ post }: { post: Post | null }) {
           <strong>Send to subscribers</strong> in the sidebar when you&apos;re ready.
         </p>
         {error && <p className="text-sm text-pink">{error}</p>}
+        {status !== "published" && (
+          <label className="flex cursor-pointer items-center gap-2 font-mono text-[11px] text-ink/60">
+            <input
+              type="checkbox"
+              checked={autosave}
+              onChange={(e) => setAutosave(e.target.checked)}
+              className="h-3.5 w-3.5 accent-purple"
+            />
+            Autosave draft every 30s
+            {!savedId && <span className="text-ink/40">(after first save)</span>}
+          </label>
+        )}
         {savedAt && !error && (
-          <p className="font-mono text-[11px] text-ink/50">Saved at {savedAt}</p>
+          <p className="font-mono text-[11px] text-ink/50">
+            {savedVia === "auto" ? "Autosaved" : "Saved"} at {savedAt}
+          </p>
         )}
 
         {field(
@@ -912,10 +972,18 @@ export default function PostEditor({ post }: { post: Post | null }) {
                   <strong>{castPreview.recipients}</strong> subscriber
                   {castPreview.recipients === 1 ? "" : "s"}?
                 </p>
-                <p className="font-mono mt-1 text-[10px] text-ink/50">
-                  Unsubscribed and bounced addresses are already excluded. Type SEND to
-                  confirm.
-                </p>
+                {castPreview.overLimit ? (
+                  <p className="font-mono mt-2 rounded-lg border-2 border-orange bg-orange/10 px-2 py-1.5 text-[10px] text-ink">
+                    ⛔ Your Resend plan allows <strong>{castPreview.dailyLimit}</strong> emails a
+                    day, and this needs <strong>{castPreview.recipients}</strong>. A partial send
+                    can&apos;t be resumed, so this is blocked until the plan is upgraded.
+                  </p>
+                ) : (
+                  <p className="font-mono mt-1 text-[10px] text-ink/50">
+                    Unsubscribed and bounced addresses are already excluded. Type SEND to
+                    confirm.
+                  </p>
+                )}
                 <input
                   type="text"
                   value={castConfirmText}
@@ -927,7 +995,7 @@ export default function PostEditor({ post }: { post: Post | null }) {
                   <button
                     type="button"
                     onClick={confirmBroadcast}
-                    disabled={castBusy || castConfirmText.trim().toUpperCase() !== "SEND"}
+                    disabled={castBusy || castPreview.overLimit || castConfirmText.trim().toUpperCase() !== "SEND"}
                     className="font-heading yh-shadow-sm flex-1 rounded-full border-2 border-ink bg-pink px-3 py-2 text-sm text-cream transition-transform hover:-translate-y-0.5 disabled:opacity-40"
                   >
                     {castBusy ? "Sending…" : `Send to ${castPreview.recipients} ▶`}

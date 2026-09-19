@@ -15,7 +15,7 @@ import {
   type PostInput,
 } from "@/lib/repo/posts";
 import { getWeekendPicks, renderWhatToWatchHtml, isTmdbConfigured } from "@/lib/tmdb";
-import { sendEmail, sendBatch, isEmailConfigured, BATCH_MAX, type BatchEmail } from "@/lib/email";
+import { sendEmail, sendBatch, isEmailConfigured, BATCH_MAX, DAILY_LIMIT, type BatchEmail } from "@/lib/email";
 import { renderPostEmail } from "@/lib/emailTemplate";
 import { resolveEmailEmbeds } from "@/lib/emailEmbeds";
 import { unsubscribeUrl, listUnsubscribeHeaders } from "@/lib/unsubscribe";
@@ -92,6 +92,9 @@ export interface BroadcastPreview {
   published: boolean;
   isArchive: boolean;
   subject: string;
+  /** the Resend plan's daily cap (0 = none) and whether this send exceeds it */
+  dailyLimit: number;
+  overLimit: boolean;
 }
 
 /**
@@ -112,6 +115,8 @@ export async function getBroadcastPreviewAction(postId: string): Promise<Broadca
     published: post.status === "published",
     isArchive: Boolean(post.importedFromArchive),
     subject: post.emailSubject || post.title || "YeeHaw",
+    dailyLimit: DAILY_LIMIT,
+    overLimit: DAILY_LIMIT > 0 && recipients.length > DAILY_LIMIT,
   };
 }
 
@@ -149,6 +154,19 @@ export async function broadcastPostAction(
 
   const recipients = await getSubscribedRecipients();
   if (!recipients.length) throw new Error("No active subscribers to send to.");
+
+  // Refuse a send the plan can't complete, BEFORE claiming. Resend's free tier
+  // caps at 100/day; beyond that the first batch would go out, the rest would
+  // be rejected, and emailSentAt would already be set — an unresumable
+  // partial send. Staggering across days is deliberately not attempted: a
+  // newsletter arriving on different days for different readers is worse
+  // than a clear "upgrade first" stop.
+  if (DAILY_LIMIT > 0 && recipients.length > DAILY_LIMIT) {
+    throw new Error(
+      `This would send ${recipients.length} emails but the Resend plan allows ${DAILY_LIMIT}/day. ` +
+        `Nothing was sent. Upgrade the Resend plan, then set RESEND_DAILY_LIMIT=0 in Vercel.`
+    );
+  }
 
   // Claim first — see claimEmailSend. Losing the race means someone/something
   // already sent this issue.

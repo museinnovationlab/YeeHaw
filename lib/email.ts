@@ -24,6 +24,15 @@ export interface BatchEmail {
 export const BATCH_MAX = 100;
 
 /**
+ * The Resend plan's daily send cap (free tier: 100/day, counting broadcasts,
+ * welcome emails AND test sends together). Set RESEND_DAILY_LIMIT to 0 after
+ * upgrading to a plan with no daily cap. Used to refuse a broadcast that
+ * couldn't complete — a partial send can't be resumed, since the issue is
+ * marked sent the moment the first batch goes out.
+ */
+export const DAILY_LIMIT = Number(process.env.RESEND_DAILY_LIMIT ?? 100) || 0;
+
+/**
  * Send up to BATCH_MAX personalized emails in a single request. Each entry
  * keeps its own headers and tags, so per-recipient unsubscribe links and the
  * post tag that drives analytics both survive.
